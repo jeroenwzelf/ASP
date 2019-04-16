@@ -18,10 +18,6 @@
 
 #include <netinet/in.h>
 
-static int asp_socket_fd = -1;
-
-#define BIND_PORT 1235
-
 struct wave_header {
 		char riff_id[4];
 		uint32_t size;
@@ -118,6 +114,58 @@ static void close_wave_file(struct wave_file *wf) {
 	close(wf->fd);
 }
 
+asp_socket create_asp_socket_server(int port) {
+	asp_socket sock;
+	sock.state = WORKING;
+
+	// Create new socket
+	if ((sock.info.sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
+		invalidate_socket(&sock, CREATE_SOCKET_FAILED, strerror(errno));
+		return sock;
+	}
+
+	// Set local address (such as port)
+	memset((char *) &sock.info.local_addr, 0, sizeof(sock.info.local_addr));
+	sock.info.local_addr.sin_family = AF_INET;
+	sock.info.local_addr.sin_port = htons(port);
+	sock.info.local_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+
+	// Bind socket to port
+	if (bind(sock.info.sockfd, &sock.info.local_addr, sizeof(sock.info.local_addr)) == -1) {
+		invalidate_socket(&sock, BIND_SOCKET_FAILED, strerror(errno));
+		return sock;
+	}
+
+	return sock;
+}
+
+void listen_to_socket(asp_socket * sock) {
+	if (sock->state == WORKING) {
+		printf("Listening for packets...\n");
+		while (true) {
+			void* buf = (void*) malloc(MAX_PACKET_SIZE);
+
+			if (recvfrom(sock->info.sockfd, buf, MAX_PACKET_SIZE, 0, &sock->info.remote_addr, &sock->info.remote_addrlen) == -1)
+				invalidate_socket(sock, SOCKET_READ_FAILED, strerror(errno));
+
+			char* bufmes = buf;
+			printf("HEX:\n");
+			for (int i=0; i<sizeof(bufmes); ++i) {
+				printf("%x ", bufmes[i] & 0XFF);
+			}
+			printf("\n");
+
+
+			char* payload = parse_asp_packet(buf);
+			printf("Received packet from %s:%d\n\tData: %s\n",
+				inet_ntoa(sock->info.remote_addr.sin_addr), ntohs(sock->info.remote_addr.sin_port), payload);
+
+			free(buf);
+		}
+	}
+	else fprintf(stderr, "Couldn't listen to socket: socket is invalid!\n");
+}
+
 int main(int argc, char **argv) {
     if (argc < 2) {
     	fprintf(stderr, "Usage: %s [file...]\n", argv[0]);
@@ -142,7 +190,8 @@ int main(int argc, char **argv) {
 
 
 	/* Set up network connection (open socket) */
-	listen_asp_socket_server(BIND_PORT, 1024);
+	asp_socket sock = create_asp_socket_server(ASP_SERVER_PORT);
+	listen_to_socket(&sock);
 
 	/* Send/rceive packets loop */
 	// {

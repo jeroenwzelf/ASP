@@ -9,8 +9,12 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <stdbool.h>
 
 #include <errno.h>
+
+#define ASP_SERVER_PORT 1235
+#define MAX_PACKET_SIZE 1024
 
 typedef struct __attribute__((__packed__)) {
 	uint16_t SOURCE_PORT;
@@ -20,7 +24,7 @@ typedef struct __attribute__((__packed__)) {
 	void* data;
 } asp_packet;
 
-/* An asp socket descriptor for information about the sockets current state */
+/* An ASP socket descriptor for information about the sockets current state */
 struct asp_socket_info {
 	int sockfd;
 
@@ -29,8 +33,6 @@ struct asp_socket_info {
 
 	struct sockaddr_in remote_addr;
 	socklen_t remote_addrlen;
-
-	struct asp_socket_info *next;
 
 	int current_quality_level;
 	int sequence_count;
@@ -41,8 +43,8 @@ struct asp_socket_info {
 	struct timeval last_packet_received;
 	struct timeval last_problem;
 
-	unsigned int is_connected : 1;
-	unsigned int has_accepted : 1;
+	bool is_connected;
+	bool has_accepted;
 };
 
 typedef enum {
@@ -59,12 +61,11 @@ typedef struct
 	struct asp_socket_info info;
 } asp_socket;
 
-void invalidate_socket(asp_socket * sock, asp_socket_state new_state, char* errorno);
 
+void invalidate_socket(asp_socket * sock, asp_socket_state new_state, char* error);
 
-void listen_asp_socket_server(int port, int buffer_length);
-void write_asp_socket_client(char* ip, int port, int buffer_length);
 
 uint16_t get_checksum(void* data);
 
 asp_packet create_asp_packet(uint16_t source, uint16_t dest, void* data);
+char* parse_asp_packet(asp_packet * packet);
