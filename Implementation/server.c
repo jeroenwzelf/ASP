@@ -139,31 +139,17 @@ asp_socket create_asp_socket_server(int port) {
 	return sock;
 }
 
-void listen_to_socket(asp_socket * sock) {
-	if (sock->state == WORKING) {
-		printf("Listening for packets...\n");
-		while (true) {
-			void* buf = (void*) malloc(MAX_PACKET_SIZE);
-
-			if (recvfrom(sock->info.sockfd, buf, MAX_PACKET_SIZE, 0, &sock->info.remote_addr, &sock->info.remote_addrlen) == -1)
-				invalidate_socket(sock, SOCKET_READ_FAILED, strerror(errno));
-
-			char* bufmes = buf;
-			printf("HEX:\n");
-			for (int i=0; i<sizeof(bufmes); ++i) {
-				printf("%x ", bufmes[i] & 0XFF);
-			}
-			printf("\n");
-
-
-			char* payload = parse_asp_packet(buf);
-			printf("Received packet from %s:%d\n\tData: %s\n",
-				inet_ntoa(sock->info.remote_addr.sin_addr), ntohs(sock->info.remote_addr.sin_port), payload);
-
-			free(buf);
+void listen_to_socket(asp_socket* sock) {
+	printf("Listening for packets...\n");
+	while (true) {
+		if (sock->state != WORKING) {
+			fprintf(stderr, "Couldn't listen to socket: socket is invalid!\n");
+			return;
 		}
+
+		void* buffer = receive_packet(sock);
+		asp_packet packet = deserialize_asp(buffer);
 	}
-	else fprintf(stderr, "Couldn't listen to socket: socket is invalid!\n");
 }
 
 int main(int argc, char **argv) {

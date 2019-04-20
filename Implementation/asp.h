@@ -11,18 +11,12 @@
 #include <unistd.h>
 #include <stdbool.h>
 
+#include "asp_packet.h"
+
 #include <errno.h>
 
 #define ASP_SERVER_PORT 1235
 #define MAX_PACKET_SIZE 1024
-
-typedef struct __attribute__((__packed__)) {
-	uint16_t SOURCE_PORT;
-	uint16_t DESTINATION_PORT;
-	uint16_t PAYLOAD_LENGTH;
-	uint16_t CHECKSUM;
-	void* data;
-} asp_packet;
 
 /* An ASP socket descriptor for information about the sockets current state */
 struct asp_socket_info {
@@ -62,10 +56,7 @@ typedef struct
 } asp_socket;
 
 
-void invalidate_socket(asp_socket * sock, asp_socket_state new_state, char* error);
+void invalidate_socket(asp_socket* sock, asp_socket_state new_state, char* error);
 
-
-uint16_t get_checksum(void* data);
-
-asp_packet create_asp_packet(uint16_t source, uint16_t dest, void* data);
-char* parse_asp_packet(asp_packet * packet);
+void send_packet(asp_socket* sock, void* packet, uint16_t packet_size);
+void* receive_packet(asp_socket* sock);

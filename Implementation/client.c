@@ -48,28 +48,17 @@ asp_socket create_asp_socket_client(char* ip, int port) {
 	return sock;
 }
 
-void send_asp_packet(asp_socket * sock) {
+void send_asp_packet(asp_socket * sock, char* message) {
 	if (sock->state == WORKING) {
-		// create message
-		char message[MAX_PACKET_SIZE];
-		memset((char *) &message, 0, sizeof(message));
-		sprintf(message, "This is a packet!");
+		asp_packet packet = create_asp_packet(ntohs(sock->info.local_addr.sin_port), ntohs(sock->info.remote_addr.sin_port), message, strlen(message));
 
-		// parse packet
-		printf("Parsing packet...\n");
-		asp_packet packet = create_asp_packet(ntohs(sock->info.local_addr.sin_port), ntohs(sock->info.remote_addr.sin_port), message);
+		printf("packet->SOURCE_PORT: %i\n", ntohs(packet.SOURCE_PORT));
+		printf("packet->DESTINATION_PORT: %i\n", ntohs(packet.DESTINATION_PORT));
+		printf("packet->PAYLOAD_LENGTH: %i\n", ntohs(packet.PAYLOAD_LENGTH));
+		printf("packet->CHECKSUM: %i\n", ntohs(packet.CHECKSUM));
+		printf("packet->data: %s\n", (char*)packet.data);
 
-		/*char* packet_char = (char*) packet;
-		// send packet
-		for (int i=0; i<sizeof(packet_char); ++i) {
-			if (packet_char[i] != NULL) printf("%x ", packet_char[i] & 0XFF);
-		}
-		printf("\n");*/
-		printf("Sending packet...\n");
-
-		if (sendto(sock->info.sockfd, &packet, sizeof(packet), 0, &sock->info.remote_addr, sock->info.remote_addrlen) == -1)
-			invalidate_socket(sock, SOCKET_WRITE_FAILED, strerror(errno));
-		printf("Sent packet!\n\n");
+		send_packet(sock, serialize_asp(&packet), size(&packet));
 	}
 	else fprintf(stderr, "Couldn't send packet: socket is invalid!\n");
 }
@@ -98,9 +87,9 @@ int main(int argc, char **argv) {
 
 	/* Set up network connection */
 	asp_socket sock = create_asp_socket_client(SERVER_IP, ASP_SERVER_PORT);
-	send_asp_packet(&sock);
-	return 0;
 
+	send_asp_packet(&sock, "This is a packet!");
+	return 0;
 
 	/* Open audio device */
 	snd_pcm_t *snd_handle;
