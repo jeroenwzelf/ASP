@@ -94,14 +94,18 @@ int main(int argc, char **argv) {
 	uint8_t *play_ptr;
 
 	int opt;
-	while ((opt = getopt(argc, argv, "b:d:")) != -1) {
+	while ((opt = getopt(argc, argv, "b:s:")) != -1) {
 		switch (opt) {
 			case 'b':
 				buffer_size = atoi(optarg);
 			break;
 			case 's': {
 				if (valid_ip(optarg)) snprintf(SERVER_IP, 16, "%s", optarg);
-				else usage(argv[0]);
+				else {
+					printf("%s is not a valid IP address!\n", optarg);
+					usage(argv[0]);
+				}
+				break;
 			}
 		default:
 			usage(argv[0]);

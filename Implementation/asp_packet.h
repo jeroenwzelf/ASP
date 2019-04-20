@@ -7,7 +7,7 @@ typedef struct __attribute__((__packed__)) {
 	uint16_t DESTINATION_PORT;
 	uint16_t PAYLOAD_LENGTH;
 	uint16_t CHECKSUM;
-	void* data;	// sending the pointer maybe?
+	void* data;
 } asp_packet;
 
 uint16_t size(asp_packet* packet);
