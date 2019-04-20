@@ -23,31 +23,7 @@ void usage(char* name) {
 	exit(-1);
 }
 
-asp_socket create_asp_socket_client(char* ip, int port) {
-	printf("Opening a new socket to %s:%i\n", ip, port);
-	asp_socket sock;
-	sock.state = WORKING;
-
-	// Create new socket
-	if ((sock.info.sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
-		invalidate_socket(&sock, CREATE_SOCKET_FAILED, strerror(errno));
-		return sock;
-	}
-
-	// Set destination address
-	memset((char *) &sock.info.remote_addr, 0, sizeof(sock.info.remote_addr));
-	sock.info.remote_addr.sin_family = AF_INET;
-	sock.info.remote_addr.sin_port = htons(port);
-	if (inet_aton(ip, &sock.info.remote_addr.sin_addr) == 0) {
-		invalidate_socket(&sock, SOCKET_WRITE_FAILED, strerror(errno));
-		return sock;
-	}
-
-	sock.info.remote_addrlen = sizeof(sock.info.remote_addr);
-	return sock;
-}
-
-void send_asp_packet(asp_socket * sock, char* message) {
+void send_asp_packet(asp_socket* sock, char* message) {
 	if (sock->state == WORKING) {
 		asp_packet packet = create_asp_packet(ntohs(sock->info.local_addr.sin_port), ntohs(sock->info.remote_addr.sin_port), message, strlen(message));
 		send_packet(sock, serialize_asp(&packet), size(&packet));
@@ -115,7 +91,8 @@ int main(int argc, char **argv) {
 
 
 	/* Set up network connection */
-	asp_socket sock = create_asp_socket_client(SERVER_IP, ASP_SERVER_PORT);
+	asp_socket sock = new_socket(1233);
+	set_remote_addr(&sock, SERVER_IP, ASP_SERVER_PORT);
 
 	send_asp_packet(&sock, "This is a packet!");
 	return 0;

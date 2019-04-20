@@ -19,14 +19,11 @@
 #define MAX_PACKET_SIZE 1024
 
 /* An ASP socket descriptor for information about the sockets current state */
-struct asp_socket_info {
+typedef struct {
 	int sockfd;
 
 	struct sockaddr_in local_addr;
-	socklen_t local_addrlen;
-
 	struct sockaddr_in remote_addr;
-	socklen_t remote_addrlen;
 
 	int current_quality_level;
 	int sequence_count;
@@ -39,23 +36,25 @@ struct asp_socket_info {
 
 	bool is_connected;
 	bool has_accepted;
-};
+} asp_socket_info;
 
 typedef enum {
 	CREATE_SOCKET_FAILED,
 	BIND_SOCKET_FAILED,
 	SOCKET_WRITE_FAILED,
 	SOCKET_READ_FAILED,
+	SOCKET_INVALID_CONFIGURATION,
 	WORKING
 } asp_socket_state;
 
 typedef struct
 {
 	asp_socket_state state;
-	struct asp_socket_info info;
+	asp_socket_info info;
 } asp_socket;
 
-
+asp_socket new_socket(int local_PORT);
+void set_remote_addr(asp_socket* sock, char* ip, int port);
 void invalidate_socket(asp_socket* sock, asp_socket_state new_state, char* error);
 
 void send_packet(asp_socket* sock, void* packet, uint16_t packet_size);

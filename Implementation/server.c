@@ -114,31 +114,6 @@ static void close_wave_file(struct wave_file *wf) {
 	close(wf->fd);
 }
 
-asp_socket create_asp_socket_server(int port) {
-	asp_socket sock;
-	sock.state = WORKING;
-
-	// Create new socket
-	if ((sock.info.sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
-		invalidate_socket(&sock, CREATE_SOCKET_FAILED, strerror(errno));
-		return sock;
-	}
-
-	// Set local address (such as port)
-	memset((char *) &sock.info.local_addr, 0, sizeof(sock.info.local_addr));
-	sock.info.local_addr.sin_family = AF_INET;
-	sock.info.local_addr.sin_port = htons(port);
-	sock.info.local_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-
-	// Bind socket to port
-	if (bind(sock.info.sockfd, &sock.info.local_addr, sizeof(sock.info.local_addr)) == -1) {
-		invalidate_socket(&sock, BIND_SOCKET_FAILED, strerror(errno));
-		return sock;
-	}
-
-	return sock;
-}
-
 void listen_to_socket(asp_socket* sock) {
 	printf("Listening for packets...\n");
 	while (true) {
@@ -177,22 +152,8 @@ int main(int argc, char **argv) {
 
 
 	/* Set up network connection (open socket) */
-	asp_socket sock = create_asp_socket_server(ASP_SERVER_PORT);
+	asp_socket sock = new_socket(ASP_SERVER_PORT);
 	listen_to_socket(&sock);
-
-	/* Send/rceive packets loop */
-	// {
-		/* Parse audio data */
-
-		/* Make packet with own ASP protocol header, etc */
-
-		/* Put audio data in packet */
-
-		/* Use UDP/IP encapsulation to send packet (automatic) to socket */
-
-	// }
-
-
 
 	/* Clean up */
 	close_wave_file(&wf);
