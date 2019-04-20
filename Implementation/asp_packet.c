@@ -63,7 +63,6 @@ void* serialize_asp(asp_packet * packet) {
 
 asp_packet deserialize_asp(void* buffer) {
 	asp_packet* packet = buffer;
-	printf("Parsing packet...\n");
 
 	// Get header
 	packet->SOURCE_PORT = ntohs(packet->SOURCE_PORT);
@@ -71,22 +70,10 @@ asp_packet deserialize_asp(void* buffer) {
 	packet->PAYLOAD_LENGTH = ntohs(packet->PAYLOAD_LENGTH);
 	packet->CHECKSUM = ntohs(packet->CHECKSUM);
 
-	printf("packet->SOURCE_PORT: %i\n", packet->SOURCE_PORT);
-	printf("packet->DESTINATION_PORT: %i\n", packet->DESTINATION_PORT);
-	printf("packet->PAYLOAD_LENGTH: %i\n", packet->PAYLOAD_LENGTH);
-	printf("packet->CHECKSUM: %i\n", packet->CHECKSUM);
-
 	// Get data
 	char* message = malloc(packet->PAYLOAD_LENGTH);
 	memcpy(message, buffer + (4 * sizeof(uint16_t)), packet->PAYLOAD_LENGTH);
-
-	printf("packet->data (HEX): ");
-	for (int i=0; i<packet->PAYLOAD_LENGTH; ++i) {
-		printf("%x ", message[i] & 0XFF);
-	}
-	printf("\n");
-
-	printf("packet->data: %s\n", message);
+	packet->data = message;
 
 	return *packet;
 }

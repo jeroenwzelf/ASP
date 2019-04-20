@@ -28,15 +28,21 @@ void invalidate_socket(asp_socket* sock, asp_socket_state new_state, char* error
 	sock->state = new_state;
 }
 
+void print_hexvalues(void* v, uint16_t size) {
+	char* buff = v;
+	uint16_t zero_count = 0;
+	for (int i=0; i<size; ++i) {
+		printf("%x ", buff[i] & 0XFF);
+		if (buff[i] != 0) zero_count = 0;
+		else if (++zero_count > 2) break;
+	}
+	printf("\n");
+}
+
 void send_packet(asp_socket* sock, void* packet, uint16_t packet_size) {
 	if (sock->state == WORKING) {
-		// Print packet in HEX
-		printf("packet in HEX:\n");
-		char* packet_char = packet;
-		for (int i=0; i<packet_size; ++i) {
-			printf("%x ", packet_char[i] & 0XFF);
-		}
-		printf("\n");
+		printf("packet in hex:\n");
+		print_hexvalues(packet, packet_size);
 		
 		// Send packet
 		if (sendto(sock->info.sockfd, packet, packet_size, 0, &sock->info.remote_addr, sock->info.remote_addrlen) == -1)
@@ -59,14 +65,8 @@ void* receive_packet(asp_socket* sock) {
 		printf("Received packet from %s:%d\n",
 			inet_ntoa(sock->info.remote_addr.sin_addr), ntohs(sock->info.remote_addr.sin_port));
 
-		printf("packet in HEX:\n");
-		char* packet_char = buf;
-		uint16_t zero_count = 0;
-		for (int i=0; i<MAX_PACKET_SIZE && zero_count < 5; ++i) {
-			printf("%x ", packet_char[i] & 0XFF);
-			if (packet_char[i] == 0) zero_count++;
-		}
-		printf("\n");
+		printf("packet in hex:\n");
+		print_hexvalues(buf, MAX_PACKET_SIZE);
 	}
 	else fprintf(stderr, "Couldn't listen to socket: socket is invalid!\n");
 

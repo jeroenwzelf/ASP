@@ -12,8 +12,6 @@
 
 #include <alsa/asoundlib.h>
 
-#define SERVER_IP "127.0.0.1"
-
 #define NUM_CHANNELS 2
 #define SAMPLE_RATE 44100
 #define BLOCK_SIZE 1024
@@ -21,11 +19,12 @@
 #define FRAME_SIZE 4
 
 void usage(char* name) {
-	fprintf(stderr, "Usage: %s [-b buffer] [-d server ip-address] \n", name);
+	fprintf(stderr, "Usage: %s [-b buffer] [-s server ip-address] \n", name);
 	exit(-1);
 }
 
 asp_socket create_asp_socket_client(char* ip, int port) {
+	printf("Opening a new socket to %s:%i\n", ip, port);
 	asp_socket sock;
 	sock.state = WORKING;
 
@@ -51,21 +50,43 @@ asp_socket create_asp_socket_client(char* ip, int port) {
 void send_asp_packet(asp_socket * sock, char* message) {
 	if (sock->state == WORKING) {
 		asp_packet packet = create_asp_packet(ntohs(sock->info.local_addr.sin_port), ntohs(sock->info.remote_addr.sin_port), message, strlen(message));
-
-		printf("packet->SOURCE_PORT: %i\n", ntohs(packet.SOURCE_PORT));
-		printf("packet->DESTINATION_PORT: %i\n", ntohs(packet.DESTINATION_PORT));
-		printf("packet->PAYLOAD_LENGTH: %i\n", ntohs(packet.PAYLOAD_LENGTH));
-		printf("packet->CHECKSUM: %i\n", ntohs(packet.CHECKSUM));
-		printf("packet->data: %s\n", (char*)packet.data);
-
 		send_packet(sock, serialize_asp(&packet), size(&packet));
 	}
 	else fprintf(stderr, "Couldn't send packet: socket is invalid!\n");
 }
 
+/* valid ip is of the form:
+	A.B.C.D where A,B,C,D are numbers ranging from 0 to 999 */
+bool valid_ip(char* ip) {
+	uint16_t count_dots = 0;
+	uint16_t count_nums = 0;
+	bool previous_was_dot = false;
+
+	char* ip_start = ip;
+	while (ip[0] != '\0') {
+		if (ip[0] == '.') {
+			if (previous_was_dot) return false;
+			count_nums = 0;
+			++count_dots;
+			previous_was_dot = true;
+		}
+		else {
+			if (++count_nums > 3) return false;
+			previous_was_dot = false;
+		}
+		++ip;
+	}
+	ip = ip_start;
+	return (count_dots == 3);
+}
+
 int main(int argc, char **argv) {
 	int buffer_size = 1024;
 	unsigned int blocksize = 0;
+
+	char SERVER_IP[16];	// largest length for ip: sizeof(XXX.XXX.XXX.XXX\0) == 16
+	snprintf(SERVER_IP, 16, "%s", "127.0.0.1");
+
 
 	uint8_t *recvbuffer;
 	uint8_t *recv_ptr;
@@ -73,11 +94,15 @@ int main(int argc, char **argv) {
 	uint8_t *play_ptr;
 
 	int opt;
-	while ((opt = getopt(argc, argv, "b:")) != -1) {
+	while ((opt = getopt(argc, argv, "b:d:")) != -1) {
 		switch (opt) {
 			case 'b':
 				buffer_size = atoi(optarg);
 			break;
+			case 's': {
+				if (valid_ip(optarg)) snprintf(SERVER_IP, 16, "%s", optarg);
+				else usage(argv[0]);
+			}
 		default:
 			usage(argv[0]);
 		}

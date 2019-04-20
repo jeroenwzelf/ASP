@@ -149,6 +149,7 @@ void listen_to_socket(asp_socket* sock) {
 
 		void* buffer = receive_packet(sock);
 		asp_packet packet = deserialize_asp(buffer);
+		printf("Received new packet!\n Payload: %s\n", packet.data);
 	}
 }
 
@@ -167,7 +168,7 @@ int main(int argc, char **argv) {
         }
     }
 
-	char *filename = argv[optind];
+	char* filename = argv[optind];
 
 	/* Open the WAVE file */
 	if (open_wave_file(&wf, filename) < 0) {
