@@ -31,6 +31,10 @@ uint16_t get_checksum(void* data) {
 	checksum field. */
 }
 
+bool has_valid_checksum(asp_packet* packet) {
+	return (packet->CHECKSUM == 5);
+}
+
 asp_packet create_asp_packet(uint16_t source, uint16_t dest, void* data, uint16_t data_size) {
 	asp_packet packet;
 
@@ -43,7 +47,7 @@ asp_packet create_asp_packet(uint16_t source, uint16_t dest, void* data, uint16_
 	return packet;
 }
 
-void* serialize_asp(asp_packet * packet) {
+void* serialize_asp(asp_packet* packet) {
 	void* buffer = malloc(size(packet));
 
 	// Convert header from host to network
@@ -62,7 +66,7 @@ void* serialize_asp(asp_packet * packet) {
 	return buffer;
 }
 
-asp_packet deserialize_asp(void* buffer) {
+asp_packet* deserialize_asp(void* buffer) {
 	asp_packet* packet = buffer;
 
 	// Convert header from network to host
@@ -76,5 +80,6 @@ asp_packet deserialize_asp(void* buffer) {
 	memcpy(message, buffer + (4 * sizeof(uint16_t)), packet->PAYLOAD_LENGTH);
 	packet->data = message;
 
-	return *packet;
+	if (!has_valid_checksum(packet)) return NULL;
+	return packet;
 }

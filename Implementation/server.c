@@ -123,8 +123,14 @@ void listen_to_socket(asp_socket* sock) {
 		}
 
 		void* buffer = receive_packet(sock);
-		asp_packet packet = deserialize_asp(buffer);
-		printf("Received new packet!\n Payload: %s\n", packet.data);
+		asp_packet* packet = deserialize_asp(buffer);
+
+		if (packet != NULL) {
+			printf("Received new packet!\n\tPayload: %s\n", packet->data);
+		}
+		else {
+			printf("Received new packet, but it was invalid!\n");
+		}
 	}
 }
 

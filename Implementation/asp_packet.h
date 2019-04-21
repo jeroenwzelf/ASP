@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 typedef struct __attribute__((__packed__)) {
 	uint16_t SOURCE_PORT;
@@ -14,5 +15,5 @@ asp_packet create_asp_packet(uint16_t source, uint16_t dest, void* data, uint16_
 uint16_t size(asp_packet* packet);
 
 // Serialization for sending and receiving packets over a socket
-void* serialize_asp(asp_packet * packet);
-asp_packet deserialize_asp(void* message);
+void* serialize_asp(asp_packet* packet);
+asp_packet* deserialize_asp(void* message);

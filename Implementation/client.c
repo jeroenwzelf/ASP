@@ -94,7 +94,14 @@ int main(int argc, char **argv) {
 	asp_socket sock = new_socket(1233);
 	set_remote_addr(&sock, SERVER_IP, ASP_SERVER_PORT);
 
-	send_asp_packet(&sock, "This is a packet!");
+	while (true) {
+		printf("String to send to the server: ");
+		char* input = malloc(MAX_PACKET_SIZE);
+		scanf("%[^\n]%*c", input);
+		
+		printf("Sending new packet!\n\tPayload: %s!\n", input);
+		send_asp_packet(&sock, input);
+	}
 	return 0;
 
 	/* Open audio device */
