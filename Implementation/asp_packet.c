@@ -1,38 +1,41 @@
 #include "asp_packet.h"
 
-uint16_t size(asp_packet * packet) {
-	return (4 * sizeof(uint16_t)) + packet->PAYLOAD_LENGTH;
-}
-
-uint16_t get_checksum(void* data) {
-	//uint8_t* octets = data;
-	//char* message = data;
-
-	/*printf("HEX for '%s':\n", message);
-
-	// Split data in octets
-	for (int i=0; i<sizeof(octets); ++i) {
-		printf("%x ", octets[i] & 0XFF);
+/*
+// Prints a uint16_t in binary to std:out
+void print(uint16_t n) {
+	uint16_t c = n;
+	for (int i = 0; i < 16; i++) {
+		printf("%d", (n & 0x8000) >> 15);
+		n <<= 1;
 	}
-	printf("\n");*/
+	printf("\t(%i)\n", c);
+}
+*/
 
+uint16_t ones_complement_sum(asp_packet* packet) {
+	uint16_t* pseudoheader = packet;
+	uint16_t* payload = packet->data;
 
-	return 5;
-
-	/* Adjacent octets to be checksummed are paired to form 16-bit
+	/* From RFC 1071: Adjacent octets are paired to form 16-bit
 	integers, and the 1's complement sum of these 16-bit integers is
 	formed. */
+	uint16_t sum = 0;
+	for (uint8_t i=0; i<4; ++i) sum += pseudoheader[i];
+	// Because the packet->PAYLOAD_LENGTH is the amount of chars in the payload,
+	// and a uint16_t is twice the size as a char, we do packet->PAYLOAD_LENGTH/2
+	for (uint16_t i=0; i<packet->PAYLOAD_LENGTH/2; ++i) sum += payload[i];
 
-
-
-	/* To generate a checksum, the checksum field itself is cleared,
-	the 16-bit 1's complement sum is computed over the octets
-	concerned, and the 1's complement of this sum is placed in the
-	checksum field. */
+	return sum;
 }
 
 bool has_valid_checksum(asp_packet* packet) {
-	return (packet->CHECKSUM == 5);
+	/* From RFC 1071: To check a checksum, the 1's complement sum is computed over the
+	same set of octets, including the checksum field.  If the result
+	is all 1 bits (-0 in 1's complement arithmetic), the check
+	succeeds. */
+
+	// Note: all 1 bits is -1 in 2's complement arithmetic
+	return ( (int16_t) ones_complement_sum(packet) == -1);
 }
 
 asp_packet create_asp_packet(uint16_t source, uint16_t dest, void* data, uint16_t data_size) {
@@ -41,12 +44,23 @@ asp_packet create_asp_packet(uint16_t source, uint16_t dest, void* data, uint16_
 	packet.SOURCE_PORT = source;
 	packet.DESTINATION_PORT = dest;
 	packet.PAYLOAD_LENGTH = data_size;
-	packet.CHECKSUM = get_checksum(data);
 	packet.data = data;
+
+	/* To generate a checksum, the checksum field itself is cleared,
+	the 16-bit 1's complement sum is computed over the octets
+	concerned, and the 1's complement of this sum is placed in the
+	checksum field. */
+	packet.CHECKSUM = 0;
+	packet.CHECKSUM = ~ones_complement_sum(&packet);
 
 	return packet;
 }
 
+uint16_t size(asp_packet* packet) {
+	return (4 * sizeof(uint16_t)) + packet->PAYLOAD_LENGTH;
+}
+
+// Copies the packet and its contents (actual data instead of pointer to data) into a buffer
 void* serialize_asp(asp_packet* packet) {
 	void* buffer = malloc(size(packet));
 
@@ -66,10 +80,10 @@ void* serialize_asp(asp_packet* packet) {
 	return buffer;
 }
 
+// Converts a buffer into a valid ASP packet if it is one. If it was not a valid packet, it returns NULL
 asp_packet* deserialize_asp(void* buffer) {
 	asp_packet* packet = buffer;
 
-	// Convert header from network to host
 	packet->SOURCE_PORT = ntohs(packet->SOURCE_PORT);
 	packet->DESTINATION_PORT = ntohs(packet->DESTINATION_PORT);
 	packet->PAYLOAD_LENGTH = ntohs(packet->PAYLOAD_LENGTH);

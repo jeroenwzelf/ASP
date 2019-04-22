@@ -37,6 +37,7 @@ typedef struct {
 	bool has_accepted;
 } asp_socket_info;
 
+// Socket state error handling
 typedef enum {
 	CREATE_SOCKET_FAILED,
 	BIND_SOCKET_FAILED,
@@ -52,9 +53,10 @@ typedef struct
 	asp_socket_info info;
 } asp_socket;
 
+// Socket initialization
 asp_socket new_socket(int local_PORT);
 void set_remote_addr(asp_socket* sock, char* ip, int port);
-void invalidate_socket(asp_socket* sock, asp_socket_state new_state, char* error);
 
+// Socket data transfer
 void send_packet(asp_socket* sock, void* packet, uint16_t packet_size);
 void* receive_packet(asp_socket* sock);

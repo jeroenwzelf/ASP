@@ -99,7 +99,7 @@ int main(int argc, char **argv) {
 		char* input = malloc(MAX_PACKET_SIZE);
 		scanf("%[^\n]%*c", input);
 		
-		printf("Sending new packet!\n\tPayload: %s!\n", input);
+		printf("Sending new packet!\n\tPayload: %s\n", input);
 		send_asp_packet(&sock, input);
 	}
 	return 0;
