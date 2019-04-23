@@ -3,6 +3,7 @@
  * Universiteit Leiden.
  */
 #include "asp.h"
+#include "wav_header.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,11 +13,8 @@
 
 #include <alsa/asoundlib.h>
 
-#define NUM_CHANNELS 2
-#define SAMPLE_RATE 44100
-#define BLOCK_SIZE 1024
-/* 1 Frame = Stereo 16 bit = 32 bit = 4kbit */
-#define FRAME_SIZE 4
+/* 1 Frame = Stereo 16 bit = 32 bit = 4kbit 
+#define FRAME_SIZE 4*/
 
 void usage(char* name) {
 	fprintf(stderr, "Usage: %s [-b buffer] [-s server ip-address] \n", name);
@@ -56,9 +54,34 @@ bool valid_ip(char* ip) {
 	return (count_dots == 3);
 }
 
+struct wave_header* receive_wav_header(asp_socket* sock) {
+	void* buffer = receive_packet(sock);
+	asp_packet* packet = deserialize_asp(buffer);
+
+	if (packet != NULL) {
+		printf("Received a valid packet!\n");
+		return deserialize_wav_header(packet->data);
+	}
+	else {
+		printf("The packet was invalid!\n");
+	}
+}
+
+uint8_t* receive_wav_samples(asp_socket* sock) {
+	void* buffer = receive_packet(sock);
+	asp_packet* packet = deserialize_asp(buffer);
+
+	if (packet != NULL) {
+		return packet->data;
+	}
+	else {
+		printf("The packet was invalid!\n");
+		exit(0);
+	}
+}
+
 int main(int argc, char **argv) {
-	int buffer_size = 1024;
-	unsigned int blocksize = 0;
+	unsigned int buffer_size = 1024;
 
 	char SERVER_IP[16];	// largest length for ip: sizeof(XXX.XXX.XXX.XXX\0) == 16
 	snprintf(SERVER_IP, 16, "%s", "127.0.0.1");
@@ -94,15 +117,17 @@ int main(int argc, char **argv) {
 	asp_socket sock = new_socket(1233);
 	set_remote_addr(&sock, SERVER_IP, ASP_SERVER_PORT);
 
-	while (true) {
-		printf("String to send to the server: ");
-		char* input = malloc(MAX_PACKET_SIZE);
-		scanf("%[^\n]%*c", input);
-		
-		printf("Sending new packet!\n\tPayload: %s\n", input);
-		send_asp_packet(&sock, input);
-	}
-	return 0;
+	char input[] = "SS";
+	printf("Sending new packet!\n\tPayload: %s\n", input);
+	send_asp_packet(&sock, input);
+
+	struct wave_header* header = receive_wav_header(&sock);
+
+	printf("%s:%d is streaming a wav file with ",
+			inet_ntoa(sock.info.remote_addr.sin_addr), ntohs(sock.info.remote_addr.sin_port));
+	printf("mode %s, samplerate %lu\n",
+				header->n_channels == 2 ? "Stereo" : "Mono",
+				header->n_samples_per_sec);
 
 	/* Open audio device */
 	snd_pcm_t *snd_handle;
@@ -118,8 +143,8 @@ int main(int argc, char **argv) {
 	err = snd_pcm_set_params(snd_handle,
 								SND_PCM_FORMAT_S16_LE,
 								SND_PCM_ACCESS_RW_INTERLEAVED,
-								NUM_CHANNELS,
-								SAMPLE_RATE,
+								header->n_channels,
+								header->n_samples_per_sec,
 								0,          /* Allow software resampling */
 								500000);    /* 0.5 seconds latency */
 	if (err < 0) {
@@ -128,10 +153,12 @@ int main(int argc, char **argv) {
 	}
 
 	/* set up buffers/queues */
-	recvbuffer = malloc(BLOCK_SIZE);
-	playbuffer = malloc(BLOCK_SIZE);
+	recvbuffer = malloc(buffer_size);
+	playbuffer = malloc(buffer_size);
 
 	/* TODO: fill the buffer */
+	memcpy(playbuffer, receive_wav_samples(&sock), buffer_size);
+	//memcpy(playbuffer, recvbuffer, buffer_size);
 
 	/* Play */
 	printf("playing...\n");
@@ -140,14 +167,12 @@ int main(int argc, char **argv) {
 	recv_ptr = recvbuffer;
 	while (1) {
 		if (i <= 0) {
-			/* TODO: get sample */
-
 			play_ptr = playbuffer;
-			i = blocksize;
+			i = buffer_size;
 		}
 
 		/* write frames to ALSA */
-		snd_pcm_sframes_t frames = snd_pcm_writei(snd_handle, play_ptr, (blocksize - ((int) play_ptr - (int) playbuffer)) / FRAME_SIZE);
+		snd_pcm_sframes_t frames = snd_pcm_writei(snd_handle, play_ptr, (buffer_size - ((int) play_ptr - (int) playbuffer)) / header->n_block_align);
 
 		/* Check for errors */
 		int ret = 0;
@@ -157,22 +182,23 @@ int main(int argc, char **argv) {
 			fprintf(stderr, "ERROR: Failed writing audio with snd_pcm_writei(): %i\n", ret);
 			exit(EXIT_FAILURE);
 		}
-		if (frames > 0 && frames < (blocksize - ((int) play_ptr - (int) playbuffer)) / FRAME_SIZE)
+		if (frames > 0 && frames < (buffer_size - ((int) play_ptr - (int) playbuffer)) / header->n_block_align)
 			printf("Short write (expected %i, wrote %li)\n",
-						(int) (blocksize - ((int) play_ptr - (int) playbuffer)) / FRAME_SIZE, frames);
+						(int) (buffer_size - ((int) play_ptr - (int) playbuffer)) / header->n_block_align, frames);
 
 		/* advance pointers accordingly */
 		if (frames > 0) {
-			play_ptr += frames * FRAME_SIZE;
-			i -= frames * FRAME_SIZE;
+			play_ptr += frames * header->n_block_align;
+			i -= frames * header->n_block_align;
 		}
 
-		if ((int) play_ptr - (int) playbuffer == blocksize)
+		if ((int) play_ptr - (int) playbuffer == buffer_size)
 			i = 0;
 
-
-		/* TODO: try to receive a block from the server? */
-
+		if (i <= 0) {
+			memcpy(playbuffer, recvbuffer, buffer_size);
+			memcpy(recvbuffer, receive_wav_samples(&sock), buffer_size);
+		}
 	}
 
 	/* clean up */

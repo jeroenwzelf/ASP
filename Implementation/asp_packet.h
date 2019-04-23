@@ -17,4 +17,4 @@ uint16_t size(asp_packet* packet);
 
 // Serialization for transferring packet over a socket
 void* serialize_asp(asp_packet* packet);
-asp_packet* deserialize_asp(void* message);
+asp_packet* deserialize_asp(void* buffer);

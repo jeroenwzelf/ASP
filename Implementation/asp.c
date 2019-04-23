@@ -38,7 +38,7 @@ asp_socket new_socket(int local_PORT) {
 
 	// Create new socket
 	if ((sock.info.sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
-		set_socket_status(&sock, CREATE_SOCKET_FAILED, strerror(errno));
+		set_socket_state(&sock, CREATE_SOCKET_FAILED, strerror(errno));
 		return sock;
 	}
 
@@ -54,7 +54,7 @@ asp_socket new_socket(int local_PORT) {
 
 	// Bind socket to port
 	if (bind(sock.info.sockfd, &sock.info.local_addr, sizeof(sock.info.local_addr)) == -1) {
-		set_socket_status(&sock, BIND_SOCKET_FAILED, strerror(errno));
+		set_socket_state(&sock, BIND_SOCKET_FAILED, strerror(errno));
 		return sock;
 	}
 
@@ -70,14 +70,14 @@ void set_remote_addr(asp_socket* sock, char* ip, int port) {
 
 	// Check if remote IP address is correct
 	if (inet_aton(ip, &sock->info.remote_addr.sin_addr) == 0) {
-		set_socket_status(&sock, SOCKET_WRONG_REMOTE_ADDRESS, strerror(errno));
+		set_socket_state(&sock, SOCKET_WRONG_REMOTE_ADDRESS, strerror(errno));
 	}
 	else if (sock->state == SOCKET_WRONG_REMOTE_ADDRESS)
-		set_socket_status(&sock, WORKING);
+		set_socket_state(&sock, WORKING);
 }
 
 // Socket state error handling
-void set_socket_status(asp_socket* sock, asp_socket_state new_state, char* error) {
+void set_socket_state(asp_socket* sock, asp_socket_state new_state, char* error) {
 	fprintf(stderr, "Socket state changed from %s to %s (%s).\n", asp_socket_state_to_char(sock->state), asp_socket_state_to_char(new_state), error);
 	sock->state = new_state;
 }
@@ -97,12 +97,12 @@ void print_hexvalues(void* v, uint16_t size) {
 // Sends a packet of any form over the socket
 void send_packet(asp_socket* sock, void* packet, uint16_t packet_size) {
 	if (sock->state == WORKING) {
-		printf("packet in hex:\n");
-		print_hexvalues(packet, packet_size);
+		//printf("packet in hex:\n");
+		//print_hexvalues(packet, packet_size);
 		
 		if (sendto(sock->info.sockfd, packet, packet_size, 0, &sock->info.remote_addr, sizeof(sock->info.remote_addr)) == -1)
-			set_socket_status(sock, SOCKET_WRITE_FAILED, strerror(errno));
-		else printf("Sent packet!\n\n");
+			set_socket_state(sock, SOCKET_WRITE_FAILED, strerror(errno));
+		//else printf("Sent packet!\n\n");
 	}
 	else fprintf(stderr, "Couldn't send packet: socket is invalid!\n");
 }
@@ -116,15 +116,15 @@ void* receive_packet(asp_socket* sock) {
 		// Wait for an incoming packet
 		socklen_t remote_addrlen = sizeof(sock->info.remote_addr);
 		if (recvfrom(sock->info.sockfd, buf, MAX_PACKET_SIZE, 0, &sock->info.remote_addr, &remote_addrlen) == -1)
-			set_socket_status(sock, SOCKET_READ_FAILED, strerror(errno));
+			set_socket_state(sock, SOCKET_READ_FAILED, strerror(errno));
 
 		// Received a packet
-		printf("Received packet from %s:%d\n",
-			inet_ntoa(sock->info.remote_addr.sin_addr), ntohs(sock->info.remote_addr.sin_port));
+		//printf("Received packet from %s:%d\n",
+		//	inet_ntoa(sock->info.remote_addr.sin_addr), ntohs(sock->info.remote_addr.sin_port));
 		++sock->info.packets_received;
 
-		printf("packet in hex:\n");
-		print_hexvalues(buf, MAX_PACKET_SIZE);
+		//printf("packet in hex:\n");
+		//print_hexvalues(buf, MAX_PACKET_SIZE);
 	}
 	else fprintf(stderr, "Couldn't listen to socket: socket is invalid!\n");
 

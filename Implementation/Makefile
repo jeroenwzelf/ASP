@@ -8,11 +8,11 @@ all:	server client
 %.o:	%.c
 	gcc -w -s -std=gnu99 -c $<
 
-server:	server.o asp_packet.o asp.o
-	gcc -Wall -s -o server server.o asp_packet.o asp.o -lm
+server:	wav_header.o server.o asp_packet.o asp.o
+	gcc -Wall -s -o server wav_header.o server.o asp_packet.o asp.o -lm
 
-client:	client.o asp_packet.o asp.o
-	gcc -Wall -s -o client client.o asp_packet.o asp.o -lm -lasound
+client:	client.o wav_header.o asp_packet.o asp.o
+	gcc -Wall -s -o client wav_header.o client.o asp_packet.o asp.o -lm -lasound
 
 clean:
 	rm -f server

@@ -4,6 +4,7 @@
  */
 
 #include "asp.h"
+#include "wav_header.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -17,20 +18,6 @@
 #include <fcntl.h>
 
 #include <netinet/in.h>
-
-struct wave_header {
-		char riff_id[4];
-		uint32_t size;
-		char wave_id[4];
-		char format_id[4];
-		uint32_t format_size;
-		uint16_t w_format_tag;
-		uint16_t n_channels;
-		uint32_t n_samples_per_sec;
-		uint32_t n_avg_bytes_per_sec;
-		uint16_t n_block_align;
-		uint16_t w_bits_per_sample;
-};
 
 /* wave file handle */
 struct wave_file {
@@ -114,23 +101,32 @@ static void close_wave_file(struct wave_file *wf) {
 	close(wf->fd);
 }
 
-void listen_to_socket(asp_socket* sock) {
-	printf("Listening for packets...\n");
-	while (true) {
-		if (sock->state != WORKING) {
-			fprintf(stderr, "Couldn't listen to socket: socket is invalid!\n");
-			return;
-		}
+void send_asp_packet(asp_socket* sock, void* message, uint16_t message_size) {
+	if (sock->state == WORKING) {
+		asp_packet packet = create_asp_packet(ntohs(sock->info.local_addr.sin_port), ntohs(sock->info.remote_addr.sin_port), message, message_size);
+		send_packet(sock, serialize_asp(&packet), size(&packet));
+	}
+	else fprintf(stderr, "Couldn't send packet: socket is invalid!\n");
+}
 
-		void* buffer = receive_packet(sock);
-		asp_packet* packet = deserialize_asp(buffer);
+void start_streaming(asp_socket* sock, struct wave_file *wf) {
+	// First do header
+	void* buffer = serialize_wav_header(wf->wh);
+	send_asp_packet(sock, buffer, sizeof_wav_header());
+	free(buffer);
 
-		if (packet != NULL) {
-			printf("Received a valid packet!\n\tPayload: %s\n", packet->data);
-		}
-		else {
-			printf("The packet was invalid!\n");
-		}
+	// Then send all samples
+	for (uint32_t i=0; i<=wf->payload_size; ++i) {
+		// Cut samples up in blocks of 1024
+		usleep(5000);
+		uint8_t* payload = malloc(1024 * sizeof(uint8_t));
+		memcpy(payload, wf->samples, 1024 * sizeof(uint8_t));
+
+		// Send packet
+		send_asp_packet(sock, payload, 1024 * sizeof(uint8_t));
+		wf->samples += 1024 * sizeof(uint8_t);
+
+		free(payload);
 	}
 }
 
@@ -159,7 +155,26 @@ int main(int argc, char **argv) {
 
 	/* Set up network connection (open socket) */
 	asp_socket sock = new_socket(ASP_SERVER_PORT);
-	listen_to_socket(&sock);
+	
+	printf("Listening for packets...\n");
+	while (true) {
+		if (sock.state != WORKING) {
+			fprintf(stderr, "Couldn't listen to socket: socket is invalid!\n");
+			return;
+		}
+
+		void* buffer = receive_packet(&sock);
+		asp_packet* packet = deserialize_asp(buffer);
+
+		if (packet != NULL) {
+			printf("Received a valid packet!\n\tPayload: %s\n", packet->data);
+			if (strcmp(packet->data, "SS") == 0)
+				start_streaming(&sock, &wf);
+		}
+		else {
+			printf("The packet was invalid!\n");
+		}
+	}
 
 	/* Clean up */
 	close_wave_file(&wf);

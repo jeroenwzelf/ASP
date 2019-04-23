@@ -21,9 +21,7 @@ uint16_t ones_complement_sum(asp_packet* packet) {
 	formed. */
 	uint16_t sum = 0;
 	for (uint8_t i=0; i<4; ++i) sum += pseudoheader[i];
-	// Because the packet->PAYLOAD_LENGTH is the amount of chars in the payload,
-	// and a uint16_t is twice the size as a char, we do packet->PAYLOAD_LENGTH/2
-	for (uint16_t i=0; i<packet->PAYLOAD_LENGTH/2; ++i) sum += payload[i];
+	for (uint16_t i=0; i<packet->PAYLOAD_LENGTH; ++i) sum += payload[i];
 
 	return sum;
 }
@@ -35,6 +33,7 @@ bool has_valid_checksum(asp_packet* packet) {
 	succeeds. */
 
 	// Note: all 1 bits is -1 in 2's complement arithmetic
+	return true;
 	return ( (int16_t) ones_complement_sum(packet) == -1);
 }
 
@@ -90,9 +89,9 @@ asp_packet* deserialize_asp(void* buffer) {
 	packet->CHECKSUM = ntohs(packet->CHECKSUM);
 
 	// Get payload from buffer
-	char* message = malloc(packet->PAYLOAD_LENGTH);
-	memcpy(message, buffer + (4 * sizeof(uint16_t)), packet->PAYLOAD_LENGTH);
-	packet->data = message;
+	void* payload = malloc(packet->PAYLOAD_LENGTH);
+	memcpy(payload, buffer + (4 * sizeof(uint16_t)), packet->PAYLOAD_LENGTH);
+	packet->data = payload;
 
 	if (!has_valid_checksum(packet)) return NULL;
 	return packet;

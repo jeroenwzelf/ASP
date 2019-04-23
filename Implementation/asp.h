@@ -39,12 +39,12 @@ typedef struct {
 
 // Socket state error handling
 typedef enum {
-	CREATE_SOCKET_FAILED,
-	BIND_SOCKET_FAILED,
-	SOCKET_WRITE_FAILED,
-	SOCKET_READ_FAILED,
-	SOCKET_WRONG_REMOTE_ADDRESS,
-	WORKING
+	CREATE_SOCKET_FAILED = 0,
+	BIND_SOCKET_FAILED = 1,
+	SOCKET_WRITE_FAILED = 2,
+	SOCKET_READ_FAILED = 3,
+	SOCKET_WRONG_REMOTE_ADDRESS = 4,
+	WORKING = 5
 } asp_socket_state;
 
 typedef struct
@@ -52,6 +52,8 @@ typedef struct
 	asp_socket_state state;
 	asp_socket_info info;
 } asp_socket;
+
+char* asp_socket_state_to_char(asp_socket_state s);
 
 // Socket initialization
 asp_socket new_socket(int local_PORT);
