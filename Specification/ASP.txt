@@ -1,3 +1,5 @@
+An ASP (Audio Streaming Protocol) packet is defined as:
+
 0		7 8		15 16	 23 24		31
 +--------+--------+--------+--------+
 |	Source Port	  |	Destination		|
@@ -8,3 +10,37 @@
 | 			Data octets...
 |				...					
 +---------------...
+
+The Source Port field contains the port from which the packet is sent.
+
+The Destination Port field contains the port to which the packet is sent.
+
+The Length field specifies how many octets the Data field consists of.
+	(Length is 16 bits long, meaning the payload of an ASP packet can contain a maximum of 65535 octets)
+
+The Checksum field makes it possible to validate packets, and is specified in RFC 1071.
+	A short explanation of generating the checksum:
+		(1)  Adjacent octets to be checksummed are paired to form 16-bit
+		integers, and the 1's complement sum of these 16-bit integers is
+		formed.
+
+		(2)  To generate a checksum, the checksum field itself is cleared,
+		the 16-bit 1's complement sum is computed over the octets
+		concerned, and the 1's complement of this sum is placed in the
+		checksum field.
+	A short explanation of validating a packet:
+		(1)  To check a checksum, the 1's complement sum is computed over the
+        same set of octets, including the checksum field. If the result
+        is all 1 bits (-0 in 1's complement arithmetic), the check
+        succeeds.
+	(for more info, check: https://tools.ietf.org/html/rfc1071)
+
+The Data octets field contains the payload of the packet. The data can be of any form and server and client have to be able to agree in some way on the form of the payload to parse the Data field.
+
+
+
+Consequently, an ASP packet is at least 4 * 16 = 64 bits long.
+A packet with this size would have a Length field of 0000000000000000, and there would be no Data octets in the packet.
+
+
+For an implementation of an ASP packet in C, check Implementation/asp_packet.c.
