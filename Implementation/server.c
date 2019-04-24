@@ -8,30 +8,33 @@ void usage(char* name) {
 	exit(-1);
 }
 
-void send_asp_packet(asp_socket* sock, void* message, uint16_t message_size) {
-	if (sock->state == WORKING) {
-		asp_packet packet = create_asp_packet(ntohs(sock->info.local_addr.sin_port), ntohs(sock->info.remote_addr.sin_port), message, message_size);
-		send_packet(sock, serialize_asp(&packet), size(&packet));
-	}
-	else fprintf(stderr, "Couldn't send packet: socket is invalid!\n");
-}
-
 void start_streaming(asp_socket* sock, struct wave_file *wf) {
 	// First, send wav header
 	void* buffer = serialize_wav_header(wf->wh);
-	send_asp_packet(sock, buffer, sizeof_wav_header());
+	asp_packet packet = create_asp_packet(
+				ntohs(sock->info.local_addr.sin_port),
+				ntohs(sock->info.remote_addr.sin_port),
+				buffer, sizeof_wav_header());
+	send_packet(sock, serialize_asp(&packet), size(&packet));
 	free(buffer);
+
+	uint32_t BLOCK_SIZE = 1024;
 
 	// Then send all samples
 	for (uint32_t i=0; i<=wf->payload_size; ++i) {
-		// Cut samples up in blocks of 1024
+		// Cut samples up in blocks of BLOCK_SIZE
 		usleep(5000);
-		uint8_t* payload = malloc(1024 * sizeof(uint8_t));
-		memcpy(payload, wf->samples, 1024 * sizeof(uint8_t));
+		uint8_t* payload = malloc(BLOCK_SIZE * sizeof(uint8_t));
+		memcpy(payload, wf->samples, BLOCK_SIZE * sizeof(uint8_t));
 
 		// Send packet
-		send_asp_packet(sock, payload, 1024 * sizeof(uint8_t));
-		wf->samples += 1024 * sizeof(uint8_t);
+		asp_packet packet = create_asp_packet(
+				ntohs(sock->info.local_addr.sin_port),
+				ntohs(sock->info.remote_addr.sin_port),
+				payload, BLOCK_SIZE * sizeof(uint8_t));
+		send_packet(sock, serialize_asp(&packet), size(&packet));
+
+		wf->samples += BLOCK_SIZE * sizeof(uint8_t);
 
 		free(payload);
 	}
@@ -45,7 +48,6 @@ int main(int argc, char **argv) {
 			default: usage(argv[0]);
 		}
 	}
-
 	char* filename = argv[optind];
 
 	// Open the WAVE file
