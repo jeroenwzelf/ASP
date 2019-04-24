@@ -32,7 +32,7 @@ void print_header(struct wave_header* header) {
 }
 
 void* serialize_wav_header(struct wave_header* header) {
-	void* buffer = malloc(sizeof_wav_header(header));
+	void* buffer = malloc(sizeof_wav_header());
 	void* buffer_start = buffer;
 
 	// Convert header from host to network

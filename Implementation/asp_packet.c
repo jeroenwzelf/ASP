@@ -1,17 +1,5 @@
 #include "asp_packet.h"
 
-/*
-// Prints a uint16_t in binary to std:out
-void print(uint16_t n) {
-	uint16_t c = n;
-	for (int i = 0; i < 16; i++) {
-		printf("%d", (n & 0x8000) >> 15);
-		n <<= 1;
-	}
-	printf("\t(%i)\n", c);
-}
-*/
-
 uint16_t ones_complement_sum(asp_packet* packet) {
 	uint16_t* pseudoheader = packet;
 	uint16_t* payload = packet->data;
@@ -20,7 +8,7 @@ uint16_t ones_complement_sum(asp_packet* packet) {
 	integers, and the 1's complement sum of these 16-bit integers is
 	formed. */
 	uint16_t sum = 0;
-	for (uint8_t i=0; i<4; ++i) sum += pseudoheader[i];
+	for (uint16_t i=0; i<4; ++i) sum += pseudoheader[i];
 	for (uint16_t i=0; i<packet->PAYLOAD_LENGTH; ++i) sum += payload[i];
 
 	return sum;
@@ -45,7 +33,7 @@ asp_packet create_asp_packet(uint16_t source, uint16_t dest, void* data, uint16_
 	packet.PAYLOAD_LENGTH = data_size;
 	packet.data = data;
 
-	/* To generate a checksum, the checksum field itself is cleared,
+	/* From RFC 1071: To generate a checksum, the checksum field itself is cleared,
 	the 16-bit 1's complement sum is computed over the octets
 	concerned, and the 1's complement of this sum is placed in the
 	checksum field. */
