@@ -1,10 +1,12 @@
 #include "wav_file.h"
 #include "asp.h"
 
-#include <unistd.h>
-#include <stdbool.h>
-
 static struct wave_file wf = {0,};
+
+void usage(char* name) {
+	fprintf(stderr, "Usage: %s [file...]\n", name);
+	exit(-1);
+}
 
 void send_asp_packet(asp_socket* sock, void* message, uint16_t message_size) {
 	if (sock->state == WORKING) {
@@ -36,18 +38,13 @@ void start_streaming(asp_socket* sock, struct wave_file *wf) {
 }
 
 int main(int argc, char **argv) {
-    if (argc < 2) {
-    	fprintf(stderr, "Usage: %s [file...]\n", argv[0]);
-    	return -1;
-    }
-    int opt;
-    while ((opt = getopt(argc, argv, "")) != -1) {
-        switch (opt) {
-        default:
-            fprintf(stderr, "Usage: %s [file...]\n", argv[0]);
-            return -1;
-        }
-    }
+	if (argc < 2) usage(argv[0]);
+	int opt;
+	while ((opt = getopt(argc, argv, "")) != -1) {
+		switch (opt) {
+			default: usage(argv[0]);
+		}
+	}
 
 	char* filename = argv[optind];
 
@@ -70,9 +67,7 @@ int main(int argc, char **argv) {
 			if (client_wants_audiostream == 0)
 				start_streaming(&sock, &wf);
 		}
-		else {
-			printf("The packet was invalid!\n");
-		}
+		else printf("The packet was invalid!\n");
 	}
 
 	/* Clean up */

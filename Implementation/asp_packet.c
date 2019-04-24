@@ -69,6 +69,7 @@ void* serialize_asp(asp_packet* packet) {
 
 // Converts a buffer into a valid ASP packet if it is one. If it was not a valid packet, it returns NULL
 asp_packet* deserialize_asp(void* buffer) {
+	if (buffer == NULL) return NULL;
 	asp_packet* packet = buffer;
 
 	packet->SOURCE_PORT = ntohs(packet->SOURCE_PORT);

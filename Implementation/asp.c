@@ -70,9 +70,9 @@ void set_remote_addr(asp_socket* sock, char* ip, int port) {
 
 	// Check if remote IP address is correct
 	if (inet_aton(ip, &sock->info.remote_addr.sin_addr) == 0)
-		set_socket_state(&sock, SOCKET_WRONG_REMOTE_ADDRESS, strerror(errno));
+		set_socket_state(sock, SOCKET_WRONG_REMOTE_ADDRESS, strerror(errno));
 	else if (sock->state == SOCKET_WRONG_REMOTE_ADDRESS)
-		set_socket_state(&sock, WORKING);
+		set_socket_state(sock, WORKING);
 }
 
 // Socket state error handling
@@ -100,10 +100,14 @@ void* receive_packet(asp_socket* sock) {
 		socklen_t remote_addrlen = sizeof(sock->info.remote_addr);
 		if (recvfrom(sock->info.sockfd, buf, MAX_PACKET_SIZE, 0, &sock->info.remote_addr, &remote_addrlen) == -1)
 			set_socket_state(sock, SOCKET_READ_FAILED, strerror(errno));
-
-		// Received a packet
-		++sock->info.packets_received;
+		else {
+			// Received a packet
+			++sock->info.packets_received;
+			return buf;
+		}
 	}
-	else fprintf(stderr, "Couldn't listen to socket: socket is invalid!\n");
-	return buf;
+
+	free(buf);
+	fprintf(stderr, "Couldn't listen to socket: socket is invalid!\n");
+	return NULL;
 }
