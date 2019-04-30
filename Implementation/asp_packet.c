@@ -9,7 +9,10 @@ uint16_t ones_complement_sum(asp_packet* packet) {
 	formed. */
 	uint16_t sum = 0;
 	for (uint16_t i=0; i<4; ++i) sum += pseudoheader[i];
-	for (uint16_t i=0; i<packet->PAYLOAD_LENGTH; ++i) sum += payload[i];
+	// Something is still not working regarding summing the payload octets
+	// for PAYLOAD_LENGTH long. For now, we solved this by just checksumming the
+	// header.
+	// for (uint16_t i=0; i<packet->PAYLOAD_LENGTH; ++i) sum += payload[i];
 
 	return sum;
 }
@@ -21,7 +24,6 @@ bool has_valid_checksum(asp_packet* packet) {
 	succeeds. */
 
 	// Note: all 1 bits is -1 in 2's complement arithmetic
-	return true;
 	return ( (int16_t) ones_complement_sum(packet) == -1);
 }
 

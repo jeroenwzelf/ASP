@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdbool.h>
 
+// An ASP packet (defined in Specification/ASP.txt)
 typedef struct __attribute__((__packed__)) {
 	uint16_t SOURCE_PORT;
 	uint16_t DESTINATION_PORT;

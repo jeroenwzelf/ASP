@@ -58,11 +58,11 @@ int main(int argc, char **argv) {
 	set_remote_addr(&sock, SERVER_IP, ASP_SERVER_PORT);
 
 	// Let the server know that he should start his audio stream
-	char start_streaming_command[] = "SS";
+	//char start_streaming_command[] = "SS";
 	asp_packet packet = create_asp_packet(
 				ntohs(sock.info.local_addr.sin_port),
 				ntohs(sock.info.remote_addr.sin_port), 
-				start_streaming_command, strlen(start_streaming_command));
+				"SS", 6); // "SS\0" is 3 char long, and sizeof(char) == 2 * sizeof(uint16_t), so length in uint16_t octets is 2 * 3 = 6
 	send_packet(&sock, serialize_asp(&packet), size(&packet));
 
 	// First, receive the header of the wav file

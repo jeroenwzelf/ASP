@@ -26,7 +26,13 @@ char* asp_socket_state_to_char(asp_socket_state s) {
 	return "UNDEFINED";
 }
 
-// Create a new socket and binds it to local_PORT.
+// Socket state error handling
+void set_socket_state(asp_socket* sock, asp_socket_state new_state, char* error) {
+	fprintf(stderr, "Socket state changed from %s to %s (%s).\n", asp_socket_state_to_char(sock->state), asp_socket_state_to_char(new_state), error);
+	sock->state = new_state;
+}
+
+// Creates a new socket and binds it to local_PORT.
 // To listen to the socket, use receive_packet(sock)
 // To send data over the socket to a remote address, configure the remote address
 // 		with set_remote_addr(sock, ip, port)
@@ -61,7 +67,7 @@ asp_socket new_socket(int local_PORT) {
 	return sock;
 }
 
-// Sets the remote address (ip:port) for the socket
+// Sets the remote address (ip:port) for a socket
 void set_remote_addr(asp_socket* sock, char* ip, int port) {
 	// Set destination address (ip:port)
 	memset((char*)&sock->info.remote_addr, ip, sizeof(sock->info.remote_addr));
@@ -72,16 +78,10 @@ void set_remote_addr(asp_socket* sock, char* ip, int port) {
 	if (inet_aton(ip, &sock->info.remote_addr.sin_addr) == 0)
 		set_socket_state(sock, SOCKET_WRONG_REMOTE_ADDRESS, strerror(errno));
 	else if (sock->state == SOCKET_WRONG_REMOTE_ADDRESS)
-		set_socket_state(sock, WORKING);
+		set_socket_state(sock, WORKING, "remote IP is corrected");
 }
 
-// Socket state error handling
-void set_socket_state(asp_socket* sock, asp_socket_state new_state, char* error) {
-	fprintf(stderr, "Socket state changed from %s to %s (%s).\n", asp_socket_state_to_char(sock->state), asp_socket_state_to_char(new_state), error);
-	sock->state = new_state;
-}
-
-// Sends a packet of any form over the socket
+// Sends a packet of any form over a socket
 void send_packet(asp_socket* sock, void* packet, uint16_t packet_size) {
 	if (sock->state == WORKING) {
 		if (sendto(sock->info.sockfd, packet, packet_size, 0, &sock->info.remote_addr, sizeof(sock->info.remote_addr)) == -1)
@@ -90,7 +90,7 @@ void send_packet(asp_socket* sock, void* packet, uint16_t packet_size) {
 	else fprintf(stderr, "Couldn't send packet: socket is invalid!\n");
 }
 
-// Blocks until it receives a packet of any form over the socket
+// Blocks until it receives a packet of any form over a socket
 void* receive_packet(asp_socket* sock) {
 	// Create empty buffer
 	void* buf = calloc(MAX_PACKET_SIZE, sizeof(char));

@@ -18,12 +18,12 @@ void start_streaming(asp_socket* sock, struct wave_file *wf) {
 	send_packet(sock, serialize_asp(&packet), size(&packet));
 	free(buffer);
 
-	uint32_t BLOCK_SIZE = 1024;
 
 	// Then send all samples
+	uint32_t BLOCK_SIZE = 1024;
 	for (uint32_t i=0; i<=wf->payload_size; ++i) {
 		// Cut samples up in blocks of BLOCK_SIZE
-		usleep(5000);
+		usleep(5000);	// temporary solution for the client not filling up his buffer correctly
 		uint8_t* payload = malloc(BLOCK_SIZE * sizeof(uint8_t));
 		memcpy(payload, wf->samples, BLOCK_SIZE * sizeof(uint8_t));
 
@@ -43,7 +43,7 @@ void start_streaming(asp_socket* sock, struct wave_file *wf) {
 int main(int argc, char **argv) {
 	if (argc < 2) usage(argv[0]);
 	int opt;
-	while ((opt = getopt(argc, argv, "")) != -1) {
+	while ((opt = getopt(argc, argv, "h")) != -1) {
 		switch (opt) {
 			default: usage(argv[0]);
 		}
@@ -58,7 +58,7 @@ int main(int argc, char **argv) {
 	
 	// Wait for anyone to connect to the socket, then send an audio stream
 	while (true) {
-		printf("Listening for incoming clients...\n");
+		printf("Listening for incoming client...\n");
 
 		void* buffer = receive_packet(&sock);
 		asp_packet* packet = deserialize_asp(buffer);
