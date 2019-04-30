@@ -1,7 +1,9 @@
-#include "asp.h"
+#include "asp_socket.h"
 #include "wav_header.h"
 
 #include <alsa/asoundlib.h>
+
+static uint32_t window_packets_received = 0;
 
 void usage(char* name) {
 	fprintf(stderr, "  Usage: %s [-b buffer] [-s server-ip-address] \n", name);
@@ -17,17 +19,26 @@ struct wave_header* receive_wav_header(asp_socket* sock) {
 	return NULL;
 }
 
-uint8_t* receive_wav_samples(asp_socket* sock) {
+void* receive_wav_samples(asp_socket* sock) {
 	void* buffer = receive_packet(sock);
 	asp_packet* packet = deserialize_asp(buffer);
 
-	if (packet != NULL)
+	if (packet != NULL) {
+		if (++window_packets_received > ASP_WINDOW) {
+			asp_packet packet = create_asp_packet(
+				ntohs(sock->info.local_addr.sin_port),
+				ntohs(sock->info.remote_addr.sin_port), 
+				"ACK", 8); // "ACK\0" is 4 char long, and sizeof(char) == 2 * sizeof(uint16_t), so length in uint16_t octets is 2 * 4 = 8
+			send_packet(sock, serialize_asp(&packet), size(&packet));
+			window_packets_received = 0;
+		}
 		return packet->data;
+	}
 	return NULL;
 }
 
 int main(int argc, char **argv) {
-	unsigned int buffer_size = 1024;
+	uint32_t buffer_size = 1024;
 
 	char SERVER_IP[16];	// largest length for ip: sizeof(XXX.XXX.XXX.XXX\0) == 16
 	snprintf(SERVER_IP, 16, "%s", "127.0.0.1");
@@ -58,11 +69,10 @@ int main(int argc, char **argv) {
 	set_remote_addr(&sock, SERVER_IP, ASP_SERVER_PORT);
 
 	// Let the server know that he should start his audio stream
-	//char start_streaming_command[] = "SS";
 	asp_packet packet = create_asp_packet(
 				ntohs(sock.info.local_addr.sin_port),
 				ntohs(sock.info.remote_addr.sin_port), 
-				"SS", 6); // "SS\0" is 3 char long, and sizeof(char) == 2 * sizeof(uint16_t), so length in uint16_t octets is 2 * 3 = 6
+				&buffer_size, 2); // sizeof(uint32_t) == 2 * sizeof(uint16_t)
 	send_packet(&sock, serialize_asp(&packet), size(&packet));
 
 	// First, receive the header of the wav file
@@ -104,17 +114,23 @@ int main(int argc, char **argv) {
 
 	/* TODO: fill the buffer */
 	memcpy(playbuffer, receive_wav_samples(&sock), buffer_size);
-	//memcpy(playbuffer, recvbuffer, buffer_size);
+	memcpy(recvbuffer, receive_wav_samples(&sock), buffer_size);
 
 	/* Play */
 	printf("playing...\n");
 
 	int i = 0;
 	recv_ptr = recvbuffer;
-	while (1) {
+	while (true) {
 		if (i <= 0) {
 			play_ptr = playbuffer;
 			i = buffer_size;
+
+			memcpy(playbuffer, recvbuffer, buffer_size);
+			void* wav_samples = receive_wav_samples(&sock);
+			if (strcmp(wav_samples, "SS") == 0) break;
+
+			memcpy(recvbuffer, wav_samples, buffer_size);
 		}
 
 		/* write frames to ALSA */
@@ -140,11 +156,6 @@ int main(int argc, char **argv) {
 
 		if ((int) play_ptr - (int) playbuffer == buffer_size)
 			i = 0;
-
-		if (i <= 0) {
-			memcpy(playbuffer, recvbuffer, buffer_size);
-			memcpy(recvbuffer, receive_wav_samples(&sock), buffer_size);
-		}
 	}
 
 	/* clean up */

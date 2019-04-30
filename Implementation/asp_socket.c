@@ -5,7 +5,7 @@
 #include <math.h>
 #include <netinet/in.h>
 
-#include "asp.h"
+#include "asp_socket.h"
 
 // socket (error) state to string
 char* asp_socket_state_to_char(asp_socket_state s) {
@@ -79,6 +79,12 @@ void set_remote_addr(asp_socket* sock, char* ip, int port) {
 		set_socket_state(sock, SOCKET_WRONG_REMOTE_ADDRESS, strerror(errno));
 	else if (sock->state == SOCKET_WRONG_REMOTE_ADDRESS)
 		set_socket_state(sock, WORKING, "remote IP is corrected");
+}
+
+void destroy_socket(asp_socket* sock) {
+	int one = 1;
+	if (setsockopt(sock->info.sockfd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(int)) == -1)
+		exit(1);
 }
 
 // Sends a packet of any form over a socket
