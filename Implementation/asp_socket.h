@@ -9,8 +9,9 @@
 
 #include <errno.h>
 
-#define ASP_SERVER_PORT 1235
-#define MAX_PACKET_SIZE 1024
+#define ASP_SERVER_PORT	1235
+#define MAX_PACKET_SIZE	524296
+#define ASP_WINDOW		20
 
 /* An ASP socket descriptor for information about the sockets current state */
 typedef struct {
@@ -50,6 +51,7 @@ typedef struct
 
 // Socket initialization
 asp_socket new_socket(int local_PORT);
+void destroy_socket(asp_socket* sock);
 void set_remote_addr(asp_socket* sock, char* ip, int port);
 
 // Socket data transfer

@@ -46,7 +46,7 @@ asp_packet create_asp_packet(uint16_t source, uint16_t dest, void* data, uint16_
 }
 
 uint16_t size(asp_packet* packet) {
-	return (4 * sizeof(uint16_t)) + packet->PAYLOAD_LENGTH;
+	return (4 * sizeof(uint16_t)) + (packet->PAYLOAD_LENGTH * sizeof(uint8_t));
 }
 
 // Copies the packet and its contents (actual data instead of pointer to data) into a buffer
