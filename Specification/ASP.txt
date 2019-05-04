@@ -15,8 +15,8 @@ The Source Port field contains the port from which the packet is sent.
 
 The Destination Port field contains the port to which the packet is sent.
 
-The Length field specifies how many octets the Data field consists of.
-	(Length is 16 bits long, meaning the payload of an ASP packet can contain a maximum of 65535 octets)
+The Length field specifies how many 16-bit pairs of data the Data field has.
+	(The Length field is 16 bits long, meaning the payload of an ASP packet can contain a maximum of 65535 octets)
 
 The Checksum field makes it possible to validate packets, and is specified in RFC 1071.
 	A short explanation of generating the checksum:
