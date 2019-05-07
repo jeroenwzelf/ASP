@@ -83,8 +83,10 @@ void set_remote_addr(asp_socket* sock, char* ip, int port) {
 
 void destroy_socket(asp_socket* sock) {
 	int one = 1;
-	if (setsockopt(sock->info.sockfd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(int)) == -1)
-		exit(1);
+	close(sock->info.sockfd);
+	//if (setsockopt(sock->info.sockfd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(int)) == -1)
+	//	exit(1);
+	free(sock);
 }
 
 // Sends a packet of any form over a socket
@@ -97,14 +99,14 @@ void send_packet(asp_socket* sock, void* packet, uint16_t packet_size) {
 }
 
 // Blocks until it receives a packet of any form over a socket
-void* receive_packet(asp_socket* sock) {
+void* receive_packet(asp_socket* sock, int flags) {
 	// Create empty buffer
 	void* buf = calloc(MAX_PACKET_SIZE, sizeof(char));
 
 	if (sock->state == WORKING) {
 		// Wait for an incoming packet
 		socklen_t remote_addrlen = sizeof(sock->info.remote_addr);
-		if (recvfrom(sock->info.sockfd, buf, MAX_PACKET_SIZE, 0, &sock->info.remote_addr, &remote_addrlen) == -1)
+		if (recvfrom(sock->info.sockfd, buf, MAX_PACKET_SIZE, flags, &sock->info.remote_addr, &remote_addrlen) == -1)
 			set_socket_state(sock, SOCKET_READ_FAILED, strerror(errno));
 		else {
 			// Received a packet

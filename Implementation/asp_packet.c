@@ -85,5 +85,7 @@ asp_packet* deserialize_asp(void* buffer) {
 	packet->data = payload;
 
 	if (!has_valid_checksum(packet)) return NULL;
+
+	printf("data: %u (unsigned int), %s (string)\n", *(uint32_t*)packet->data, packet->data);
 	return packet;
 }

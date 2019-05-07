@@ -11,7 +11,7 @@ void usage(char* name) {
 }
 
 struct wave_header* receive_wav_header(asp_socket* sock) {
-	void* buffer = receive_packet(sock);
+	void* buffer = receive_packet(sock, 0);
 	asp_packet* packet = deserialize_asp(buffer);
 
 	if (packet != NULL)
@@ -20,7 +20,7 @@ struct wave_header* receive_wav_header(asp_socket* sock) {
 }
 
 void* receive_wav_samples(asp_socket* sock) {
-	void* buffer = receive_packet(sock);
+	void* buffer = receive_packet(sock, 0);
 	asp_packet* packet = deserialize_asp(buffer);
 
 	if (packet != NULL) {
@@ -73,9 +73,23 @@ int main(int argc, char **argv) {
 				ntohs(sock.info.local_addr.sin_port),
 				ntohs(sock.info.remote_addr.sin_port), 
 				&buffer_size, 2); // sizeof(uint32_t) == 2 * sizeof(uint16_t)
+	printf("buffer size sent: %u\n", buffer_size);
 	send_packet(&sock, serialize_asp(&packet), size(&packet));
 
-	// First, receive the header of the wav file
+	// Wait for server to be ready to start streaming
+	while (true) {
+		// Old packets from a previous client may be coming through.
+		void* buffer = receive_packet(&sock, 0);
+		asp_packet* packet = deserialize_asp(buffer);
+
+		if (packet != NULL) {
+			int start_stream = strcmp(packet->data, "BS");
+			free(packet);
+			if (start_stream == 0) break;
+		}
+	}
+
+	// Receive the header of the wav file
 	struct wave_header* header = receive_wav_header(&sock);
 	if (header == NULL) return 1;
 
@@ -111,8 +125,8 @@ int main(int argc, char **argv) {
 	/* set up buffers/queues */
 	recvbuffer = malloc(buffer_size);
 	playbuffer = malloc(buffer_size);
-
-	/* TODO: fill the buffer */
+	
+	/* fill the buffer */
 	memcpy(playbuffer, receive_wav_samples(&sock), buffer_size);
 	memcpy(recvbuffer, receive_wav_samples(&sock), buffer_size);
 
@@ -128,7 +142,7 @@ int main(int argc, char **argv) {
 
 			memcpy(playbuffer, recvbuffer, buffer_size);
 			void* wav_samples = receive_wav_samples(&sock);
-			if (strcmp(wav_samples, "SS") == 0) break;
+			if (strcmp(wav_samples, "ES") == 0) break;	// The server lets us know the stream has stopped
 
 			memcpy(recvbuffer, wav_samples, buffer_size);
 		}
