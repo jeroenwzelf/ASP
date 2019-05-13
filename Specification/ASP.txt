@@ -2,26 +2,38 @@ An ASP (Audio Streaming Protocol) packet is defined as:
 
 0		7 8		15 16	 23 24		31
 +--------+--------+--------+--------+
-|	Source Port	  |	Destination		|
-|				  |		Port		|
+| Source Port	  | Destination		|
+|				  |	Port			|
 +--------+--------+--------+--------+
-|	Length		  |		Checksum	|
+| Flags	 |  Seq#  | 				|
 +--------+--------+--------+--------+
-| 			Data octets...
-|				...					
+| Length		  | Checksum		|
++--------+--------+--------+--------+
+| Data octets	...
+|				...
 +---------------...
 
 The Source Port field contains the port from which the packet is sent.
 
 The Destination Port field contains the port to which the packet is sent.
 
-The Length field specifies how many 16-bit pairs of data the Data field has.
+The Sequence Number field is there for packet identification. When some packets didn't arrive, the Sequence Number is used to resend these missing packets.
+
+The Flags field contains information about the goal of the packet (for example, to Acknowledge) and/or the type of data in the Data octets field.
+	ACK: 1					(00000001),
+	REJ: 2					(00000010),
+	NEW_CLIENT: 4			(00000100),
+	DATA_WAV_HEADER: 8		(00001000),
+	DATA_WAV_SAMPLES: 16	(00010000),
+	NEXT_EVENT: 32			(00100000),
+
+The Length field specifies how many 8-bit pairs of data the Data field has.
 	(The Length field is 16 bits long, meaning the payload of an ASP packet can contain a maximum of 65535 octets)
 
 The Checksum field makes it possible to validate packets, and is specified in RFC 1071.
 	A short explanation of generating the checksum:
-		(1)  Adjacent octets to be checksummed are paired to form 16-bit
-		integers, and the 1's complement sum of these 16-bit integers is
+		(1)  Adjacent octets to be checksummed are paired to form 8-bit
+		integers, and the 1's complement sum of these 8-bit integers is
 		formed.
 
 		(2)  To generate a checksum, the checksum field itself is cleared,
@@ -30,17 +42,83 @@ The Checksum field makes it possible to validate packets, and is specified in RF
 		checksum field.
 	A short explanation of validating a packet:
 		(1)  To check a checksum, the 1's complement sum is computed over the
-        same set of octets, including the checksum field. If the result
-        is all 1 bits (-0 in 1's complement arithmetic), the check
-        succeeds.
+		same set of octets, including the checksum field. If the result
+		is all 1 bits (-0 in 1's complement arithmetic), the check
+		succeeds.
 	(for more info, check: https://tools.ietf.org/html/rfc1071)
 
 The Data octets field contains the payload of the packet. The data can be of any form and server and client have to be able to agree in some way on the form of the payload to parse the Data field.
 
 
 
-Consequently, an ASP packet is at least 4 * 16 = 64 bits long.
+Consequently, an ASP packet is at least 6 * 16 = 96 bits long.
 A packet with this size would have a Length field of 0000000000000000, and there would be no Data octets in the packet.
 
 
 For an implementation of an ASP packet in C, check Implementation/asp_packet.c.
+
+=============================================
+Registering a client on a server
+=============================================
+As a client, you will have to send an ASP packet with the NEW_CLIENT flag, along with the additional info of how large the client wants their packets to be.
+0		7 8		15 16	 23 24		31
++--------+--------+--------+--------+
+| Source Port	  | Destination		|
+|				  |	Port			|
++--------+--------+--------+--------+
+| 2				  | 0				|					An ASP packet containing WAV samples.
++--------+--------+--------+--------+
+| 00000100		  | Checksum		|
++--------+--------+--------+--------+
+| Buffer size	  |			
++--------+--------+
+
+
+=============================================
+Sending audio samples using ASP
+=============================================
+A packet containing Audio samples will always look like:
+
+0		7 8		15 16	 23 24		31
++--------+--------+--------+--------+
+| Source Port	  | Destination		|
+|				  |	Port			|
++--------+--------+--------+--------+
+| Length		  | Sequence Number	|					An ASP packet containing WAV samples.
++--------+--------+--------+--------+
+| 00010000		  | Checksum		|
++--------+--------+--------+--------+
+| Audio sample octets	...
+|				...
++---------------...
+
+The server will send a batch of 20 packets like this, with Sequence Number 0 - 19. It will then wait for an acknowledgement packet from the client, which looks like:
+
+0		7 8		15 16	 23 24		31
++--------+--------+--------+--------+
+| Source Port	  | Destination		|
+|				  |	Port			|
++--------+--------+--------+--------+
+| 0				  | 0				|					An ASP ACK packet.
++--------+--------+--------+--------+
+| 00000001		  | Checksum		|
++--------+--------+--------+--------+
+
+If the client hasn't received all 20 packets containing samples, it can send a rejection packet instead of ACK-ing the batch, like this:
+
+0		7 8		15 16	 23 24		31
++--------+--------+--------+--------+
+| Source Port	  | Destination		|
+|				  |	Port			|
++--------+--------+--------+--------+
+| 2				  | 0				|					An ASP REJ packet.
++--------+--------+--------+--------+
+| 00000010		  | Checksum		|
++--------+--------+--------+--------+
+| Sequence number |
++--------+--------+
+
+The data contains the sequence number of the last packet of the batch the client has received. The server will start a new batch using the packets that came after the packet with that sequence number.
+
+If all goes well, the server gets an ACK packet, and it will send the next batch of packets, until there are no more samples.
+When there are no more samples, the server lets the client know the stream ended by sending a packet with the NEXT_EVENT flag.

@@ -1,22 +1,7 @@
 #include "wav_header.h"
 
-uint16_t sizeof_wav_header() {
-	return
-		  (4 * sizeof(char)) 	// riff_id[4]
-		+ sizeof(uint32_t)		// size
-		+ (4 * sizeof(char))	// wave_id[4]
-		+ (4 * sizeof(char))	// format_id[4]
-		+ sizeof(uint32_t)		// format_size
-		+ sizeof(uint16_t)		// w_format_tag
-		+ sizeof(uint16_t)		// n_channels
-		+ sizeof(uint32_t)		// n_samples_per_sec
-		+ sizeof(uint32_t)		// n_avg_bytes_per_sec
-		+ sizeof(uint16_t)		// n_block_align
-		+ sizeof(uint16_t);		// w_bits_per_sample
-}
-
 void* serialize_wav_header(struct wave_header* header) {
-	void* buffer = malloc(sizeof_wav_header());
+	void* buffer = malloc(WAV_HEADER_SIZE);
 	void* buffer_start = buffer;
 
 	// Convert header from host to network
@@ -67,7 +52,7 @@ void* serialize_wav_header(struct wave_header* header) {
 }
 
 struct wave_header* deserialize_wav_header(void* buffer) {
-	struct wave_header* header = malloc(sizeof_wav_header());
+	struct wave_header* header = malloc(WAV_HEADER_SIZE);
 
 	memcpy(header->riff_id, buffer, 4 * sizeof(char));
 	buffer += 4 * sizeof(char);

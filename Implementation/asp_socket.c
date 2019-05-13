@@ -28,6 +28,7 @@ char* asp_socket_state_to_char(asp_socket_state s) {
 
 // Socket state error handling
 void set_socket_state(asp_socket* sock, asp_socket_state new_state, char* error) {
+	if (sock == NULL) return;
 	fprintf(stderr, "Socket state changed from %s to %s (%s).\n", asp_socket_state_to_char(sock->state), asp_socket_state_to_char(new_state), error);
 	sock->state = new_state;
 }
@@ -57,6 +58,7 @@ asp_socket new_socket(int local_PORT) {
 	// Initialize socket info
 	sock.info.packets_received = 0;
 	sock.info.packets_missing = 0;
+	sock.info.sequence_count = 0;
 
 	// Bind socket to port
 	if (bind(sock.info.sockfd, &sock.info.local_addr, sizeof(sock.info.local_addr)) == -1) {
@@ -69,6 +71,7 @@ asp_socket new_socket(int local_PORT) {
 
 // Sets the remote address (ip:port) for a socket
 void set_remote_addr(asp_socket* sock, char* ip, int port) {
+	if (sock == NULL) return;
 	// Set destination address (ip:port)
 	memset((char*)&sock->info.remote_addr, ip, sizeof(sock->info.remote_addr));
 	sock->info.remote_addr.sin_family = AF_INET;
@@ -82,15 +85,13 @@ void set_remote_addr(asp_socket* sock, char* ip, int port) {
 }
 
 void destroy_socket(asp_socket* sock) {
-	int one = 1;
+	if (sock == NULL) return;
 	close(sock->info.sockfd);
-	//if (setsockopt(sock->info.sockfd, SOL_SOCKET, SO_REUSEADDR, &one, sizeof(int)) == -1)
-	//	exit(1);
-	free(sock);
 }
 
 // Sends a packet of any form over a socket
 void send_packet(asp_socket* sock, void* packet, uint16_t packet_size) {
+	if (sock == NULL) return;
 	if (sock->state == WORKING) {
 		if (sendto(sock->info.sockfd, packet, packet_size, 0, &sock->info.remote_addr, sizeof(sock->info.remote_addr)) == -1)
 			set_socket_state(sock, SOCKET_WRITE_FAILED, strerror(errno));
@@ -100,6 +101,7 @@ void send_packet(asp_socket* sock, void* packet, uint16_t packet_size) {
 
 // Blocks until it receives a packet of any form over a socket
 void* receive_packet(asp_socket* sock, int flags) {
+	if (sock == NULL) return NULL;
 	// Create empty buffer
 	void* buf = calloc(MAX_PACKET_SIZE, sizeof(char));
 
@@ -118,4 +120,52 @@ void* receive_packet(asp_socket* sock, int flags) {
 	free(buf);
 	fprintf(stderr, "Couldn't listen to socket: socket is invalid!\n");
 	return NULL;
+}
+
+void asp_send_event(asp_socket* sock, uint16_t flags) {
+	asp_packet packet = create_asp_packet(
+				ntohs(sock->info.local_addr.sin_port),
+				ntohs(sock->info.remote_addr.sin_port),
+				flags,
+				NULL, 0);
+	send_packet(sock, serialize_asp(&packet), size(&packet));
+}
+
+void asp_send_rejection(asp_socket* sock, uint16_t last_packet_sequence_number) {
+	asp_packet packet = create_asp_packet(
+				ntohs(sock->info.local_addr.sin_port),
+				ntohs(sock->info.remote_addr.sin_port),
+				REJ,
+				last_packet_sequence_number, 2);
+	send_packet(sock, serialize_asp(&packet), size(&packet));
+}
+
+void asp_send_client_info(asp_socket* sock, uint32_t buffer_size) {
+	asp_packet packet = create_asp_packet(
+				ntohs(sock->info.local_addr.sin_port),
+				ntohs(sock->info.remote_addr.sin_port),
+				NEW_CLIENT,
+				&buffer_size, 4);
+	send_packet(sock, serialize_asp(&packet), size(&packet));
+}
+
+void asp_send_wav_header(asp_socket* sock, struct wave_header* wh) {
+	void* buffer = serialize_wav_header(wh);
+	asp_packet packet = create_asp_packet(
+				ntohs(sock->info.local_addr.sin_port),
+				ntohs(sock->info.remote_addr.sin_port),
+				DATA_WAV_HEADER,
+				buffer, WAV_HEADER_SIZE);
+	send_packet(sock, serialize_asp(&packet), size(&packet));
+	free(buffer);
+}
+
+void asp_send_wav_samples(asp_socket* sock, uint8_t* samples, uint16_t amount, uint16_t packet_sequence_number) {
+	asp_packet packet = create_asp_packet(
+				ntohs(sock->info.local_addr.sin_port),
+				ntohs(sock->info.remote_addr.sin_port),
+				DATA_WAV_SAMPLES,
+				samples, amount);
+	packet.SEQ_NUMBER = packet_sequence_number;
+	send_packet(sock, serialize_asp(&packet), size(&packet));
 }

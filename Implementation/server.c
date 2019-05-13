@@ -8,89 +8,62 @@ void usage(char* name) {
 	exit(-1);
 }
 
-void send_wav_header(asp_socket* sock, struct wave_header *wh) {
-	void* buffer = serialize_wav_header(wh);
-	asp_packet packet = create_asp_packet(
-				ntohs(sock->info.local_addr.sin_port),
-				ntohs(sock->info.remote_addr.sin_port),
-				buffer, sizeof_wav_header());
-	send_packet(sock, serialize_asp(&packet), size(&packet));
-	free(buffer);
-}
+asp_packet* get_ack(asp_socket* sock) {
+	// Peek at the next incoming packet, because if it isn't an ACK or REJ, the packet will have to be parsed elsewhere
+	void* buffer = receive_packet(sock, MSG_PEEK);
+	asp_packet* packet = deserialize_asp(buffer);
 
-bool get_ack(asp_socket* sock) {
-	while (true) {
-		// Peek at the next incoming packet, because if it isn't an ACK, the packet will have to be parsed elsewhere
-		void* buffer = receive_packet(sock, MSG_PEEK);
-		asp_packet* packet = deserialize_asp(buffer);
-
-		if (packet != NULL) {
-			bool IS_ACK = strcmp(packet->data, "ACK");
-			free(buffer);
-
-			if (IS_ACK == 0) {
-				// Remove the ACK packet from the receive queue
-				void* ACK_packet = receive_packet(sock, 0);
-				free(ACK_packet);
-				return true;
-			}
-			return false;
-		}
+	if (packet != NULL && (is_flag_set(packet, ACK) || is_flag_set(packet, REJ))) {
+		// Remove the ACK packet from the receive queue, because we need to parse it
+		void* ACK_packet = receive_packet(sock, 0);
+		free(ACK_packet);
+		return packet;
 	}
+	return NULL;
 }
 
-void send_wav_samples(asp_socket* sock, struct wave_file *wf, uint32_t BLOCK_SIZE) {
+void start_streaming(asp_socket* sock, struct wave_file *wf, uint32_t BLOCK_SIZE) {
+	printf("Starting stream...\n");
+
 	uint8_t* current_sample = wf->samples;
 	uint32_t ASP_WINDOW_POS = 0;
 
-	printf("%u\n", BLOCK_SIZE);
-	printf("%u\n", wf->payload_size/BLOCK_SIZE);
+	// Let the client know the stream is beginning
+	asp_send_event(sock, NEXT_EVENT);
 
+	// Send wav header
+	asp_send_wav_header(sock, wf->wh);
+
+	// Send wav samples
 	for (uint32_t i=0; i<wf->payload_size/BLOCK_SIZE; ++i) {
 		// Cut samples up in blocks of BLOCK_SIZE
 		uint8_t* payload = malloc(BLOCK_SIZE * sizeof(uint8_t));
 		memcpy(payload, current_sample, BLOCK_SIZE * sizeof(uint8_t));
 
 		// Send packet
-		asp_packet packet = create_asp_packet(
-				ntohs(sock->info.local_addr.sin_port),
-				ntohs(sock->info.remote_addr.sin_port),
-				payload, BLOCK_SIZE * sizeof(uint8_t));
-		send_packet(sock, serialize_asp(&packet), size(&packet));
+		asp_send_wav_samples(sock, payload, BLOCK_SIZE, ASP_WINDOW_POS);
+		free(payload);
 
-		// Wait for acknowledgement from client
-		if (++ASP_WINDOW_POS > ASP_WINDOW) {
-			if (!get_ack(sock)) return;
-			ASP_WINDOW_POS = 0;
+		// Wait for acknowledgement from client when needed
+		if (++ASP_WINDOW_POS >= ASP_WINDOW) {
+			asp_packet* packet = get_ack(sock);
+			if (is_flag_set(packet, ACK)) {
+				ASP_WINDOW_POS = 0;
+			}
+			else if (is_flag_set(packet, REJ)) {
+				ASP_WINDOW_POS = 0;
+				uint16_t first_missing_packet = *(uint16_t*)packet->data + 1;
+				current_sample -= (ASP_WINDOW - first_missing_packet + 1) * (BLOCK_SIZE * sizeof(uint8_t));
+			}
+			else return;
 		}
 
 		// Goto next sample
 		current_sample += BLOCK_SIZE * sizeof(uint8_t);
-
-		free(payload);
 	}
-}
-
-void start_streaming(asp_socket* sock, struct wave_file *wf, uint32_t BLOCK_SIZE) {
-	printf("Starting stream...\n");
-
-	// Let the client know the stream is beginning
-	asp_packet bs_packet = create_asp_packet(
-				ntohs(sock->info.local_addr.sin_port),
-				ntohs(sock->info.remote_addr.sin_port), 
-				"BS", 6); // "BS\0" is 3 char long, and sizeof(char) == 2 * sizeof(uint16_t), so length in uint16_t octets is 2 * 3 = 6
-	send_packet(sock, serialize_asp(&bs_packet), size(&bs_packet));
-
-	// Send wav header + wav samples
-	send_wav_header(sock, wf->wh);
-	send_wav_samples(sock, wf, BLOCK_SIZE);
 
 	// Let the client know the stream is ending
-	asp_packet es_packet = create_asp_packet(
-				ntohs(sock->info.local_addr.sin_port),
-				ntohs(sock->info.remote_addr.sin_port), 
-				"ES", 6); // "BS\0" is 3 char long, and sizeof(char) == 2 * sizeof(uint16_t), so length in uint16_t octets is 2 * 3 = 6
-	send_packet(sock, serialize_asp(&es_packet), size(&es_packet));
+	asp_send_event(sock, NEXT_EVENT);
 
 	printf("Finished streaming the file.\n");
 }
@@ -108,10 +81,10 @@ int main(int argc, char **argv) {
 
 	// Open the WAVE file
 	if (open_wave_file(&wf, filename) < 0) return -1;
-	
+
 	// Set up network connection (open socket)
 	asp_socket sock = new_socket(ASP_SERVER_PORT);
-
+	
 	// Wait for anyone to connect to the socket, then send an audio stream
 	while (true) {
 		if (sock.state != WORKING) exit(1);
@@ -122,15 +95,16 @@ int main(int argc, char **argv) {
 		void* buffer = receive_packet(&sock, 0);
 		asp_packet* packet = deserialize_asp(buffer);
 
-		if (packet != NULL) {
+		if (packet != NULL && is_flag_set(packet, NEW_CLIENT)) {
 			uint32_t buffer_size = *(uint32_t*)packet->data;
-			free(buffer);
 			start_streaming(&sock, &wf, buffer_size);
 		}
 		else printf("The packet was invalid!\n");
+		free(buffer);
 	}
 
 	/* Clean up */
+	destroy_socket(&sock);
 	close_wave_file(&wf);
 
 	return 0;

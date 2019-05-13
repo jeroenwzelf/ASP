@@ -23,14 +23,17 @@ void* receive_wav_samples(asp_socket* sock) {
 	void* buffer = receive_packet(sock, 0);
 	asp_packet* packet = deserialize_asp(buffer);
 
-	if (packet != NULL) {
-		if (++window_packets_received > ASP_WINDOW) {
-			asp_packet packet = create_asp_packet(
-				ntohs(sock->info.local_addr.sin_port),
-				ntohs(sock->info.remote_addr.sin_port), 
-				"ACK", 8); // "ACK\0" is 4 char long, and sizeof(char) == 2 * sizeof(uint16_t), so length in uint16_t octets is 2 * 4 = 8
-			send_packet(sock, serialize_asp(&packet), size(&packet));
-			window_packets_received = 0;
+	if (packet != NULL && is_flag_set(packet, DATA_WAV_SAMPLES)) {
+		// Check if we are still getting the expected packet order
+		// If our counter is less than the packet, we missed some packets
+		if (++sock->info.sequence_count < packet->SEQ_NUMBER) {
+			asp_send_rejection(sock, sock->info.sequence_count);
+			sock->info.sequence_count = 0;
+			return receive_wav_samples(sock);
+		}
+		else if (sock->info.sequence_count >= ASP_WINDOW) {
+			asp_send_event(sock, ACK);
+			sock->info.sequence_count = 0;
 		}
 		return packet->data;
 	}
@@ -69,23 +72,18 @@ int main(int argc, char **argv) {
 	set_remote_addr(&sock, SERVER_IP, ASP_SERVER_PORT);
 
 	// Let the server know that he should start his audio stream
-	asp_packet packet = create_asp_packet(
-				ntohs(sock.info.local_addr.sin_port),
-				ntohs(sock.info.remote_addr.sin_port), 
-				&buffer_size, 2); // sizeof(uint32_t) == 2 * sizeof(uint16_t)
-	printf("buffer size sent: %u\n", buffer_size);
-	send_packet(&sock, serialize_asp(&packet), size(&packet));
+	asp_send_client_info(&sock, buffer_size);
 
 	// Wait for server to be ready to start streaming
 	while (true) {
-		// Old packets from a previous client may be coming through.
+		// Old packets from a previous client may be coming through
 		void* buffer = receive_packet(&sock, 0);
 		asp_packet* packet = deserialize_asp(buffer);
 
 		if (packet != NULL) {
-			int start_stream = strcmp(packet->data, "BS");
+			bool start_stream = is_flag_set(packet, NEXT_EVENT);
 			free(packet);
-			if (start_stream == 0) break;
+			if (start_stream) break;
 		}
 	}
 
@@ -142,8 +140,7 @@ int main(int argc, char **argv) {
 
 			memcpy(playbuffer, recvbuffer, buffer_size);
 			void* wav_samples = receive_wav_samples(&sock);
-			if (strcmp(wav_samples, "ES") == 0) break;	// The server lets us know the stream has stopped
-
+			if (wav_samples == NULL) break;
 			memcpy(recvbuffer, wav_samples, buffer_size);
 		}
 
