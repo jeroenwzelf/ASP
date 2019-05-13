@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <stdbool.h>
 
+extern bool VERBOSE_LOGGING;
+
 // An ASP packet (defined in Specification/ASP.txt)
 typedef struct __attribute__((__packed__)) {
 	uint16_t SOURCE_PORT;
@@ -40,6 +42,10 @@ enum {
 asp_packet create_asp_packet(uint16_t source, uint16_t dest, uint8_t flags, void* data, uint16_t data_size);
 bool is_flag_set(asp_packet* packet, uint8_t flag);
 uint16_t size(asp_packet* packet);
+
+// Verbose ASP packet logging
+void print_packet(asp_packet* packet);
+void print_flags(uint8_t flags);
 
 // Serialization for transferring packet over a socket
 void* serialize_asp(asp_packet* packet);

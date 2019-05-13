@@ -52,6 +52,33 @@ uint16_t size(asp_packet* packet) {
 	return (ASP_PACKET_HEADER_SIZE + (packet->PAYLOAD_LENGTH * sizeof(uint8_t)));
 }
 
+void print_packet(asp_packet* packet) {
+	printf("Source Port %u, Destination Port %u\nFlags ", packet->SOURCE_PORT, packet->DESTINATION_PORT, packet->FLAGS);
+	print_flags(packet->FLAGS);
+	printf(", Seq# %u, Length %u, Checksum %u\n\n", packet->SEQ_NUMBER, packet->PAYLOAD_LENGTH, packet->CHECKSUM);
+}
+
+void print_flags(uint8_t flags) {
+	bool flag_before_happened = false;
+	for (uint8_t bit = 0; bit < 8; ++bit) {
+		if (flags & 1) {
+			if (flag_before_happened) printf("|");
+			switch (bit) {
+				case 0: printf("%s", "ACK"); break;
+				case 1: printf("%s", "REJ"); break;
+				case 2: printf("%s", "NEW_CLIENT"); break;
+				case 3: printf("%s", "DATA_WAV_HEADER"); break;
+				case 4: printf("%s", "DATA_WAV_SAMPLES"); break;
+				case 5: printf("%s", "NEXT_EVENT"); break;
+				case 6: printf("%s", "UNSPECIFIED"); break;
+				case 7: printf("%s", "UNSPECIFIED"); break;
+			}
+		}
+		else flag_before_happened = false;
+		flags >>= 1;
+	}
+}
+
 // Copies the packet and its contents (actual data instead of pointer to data) into a buffer
 void* serialize_asp(asp_packet* packet) {
 	if (packet == NULL) return NULL;
@@ -89,13 +116,12 @@ asp_packet* deserialize_asp(void* buffer) {
 	packet->PAYLOAD_LENGTH = ntohs(packet->PAYLOAD_LENGTH);
 	packet->CHECKSUM = ntohs(packet->CHECKSUM);
 
-	printf("SOURCE_PORT %u\nDESTINATION_PORT %u\nPAYLOAD_LENGTH %u\nFLAGS %u\nSEQ_NUMBER %u\nCHECKSUM %u\n\n",
-		packet->SOURCE_PORT, packet->DESTINATION_PORT, packet->PAYLOAD_LENGTH, packet->FLAGS, packet->SEQ_NUMBER, packet->CHECKSUM);
-
 	// Get payload from buffer
 	void* payload = malloc(packet->PAYLOAD_LENGTH);
 	memcpy(payload, buffer + ASP_PACKET_HEADER_SIZE, packet->PAYLOAD_LENGTH);
 	packet->data = payload;
+
+	if (VERBOSE_LOGGING) print_packet(packet);
 
 	if (!has_valid_checksum(packet)) {
 		printf("invalid checksum!\n");

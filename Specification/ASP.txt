@@ -17,7 +17,7 @@ The Source Port field contains the port from which the packet is sent.
 
 The Destination Port field contains the port to which the packet is sent.
 
-The Sequence Number field is there for packet identification. When some packets didn't arrive, the Sequence Number is used to resend these missing packets.
+The Seq# field is there for packet identification. When some packets don't arrive, this sequence number is used to resend these missing packets.
 
 The Flags field contains information about the goal of the packet (for example, to Acknowledge) and/or the type of data in the Data octets field.
 	ACK: 1					(00000001),

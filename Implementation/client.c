@@ -3,10 +3,11 @@
 
 #include <alsa/asoundlib.h>
 
-static uint32_t window_packets_received = 0;
+// PROGRAM OPTIONS
+bool VERBOSE_LOGGING = false;
 
 void usage(char* name) {
-	fprintf(stderr, "  Usage: %s [-b buffer] [-s server-ip-address] \n", name);
+	fprintf(stderr, "  Usage: %s [OPTION]... [-b buffer] [-s server-ip-address]\n\t-v\tverbose packet logging\n", name);
 	exit(-1);
 }
 
@@ -53,8 +54,10 @@ int main(int argc, char **argv) {
 	uint8_t *play_ptr;
 
 	int opt;
-	while ((opt = getopt(argc, argv, "b:s:h")) != -1) {
+	while ((opt = getopt(argc, argv, "b:s:vh")) != -1) {
 		switch (opt) {
+			case 'v': VERBOSE_LOGGING = true;
+				break;
 			case 'b':
 				buffer_size = atoi(optarg);
 				break;

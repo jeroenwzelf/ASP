@@ -1,10 +1,11 @@
 #include "wav_file.h"
 #include "asp_socket.h"
 
-static struct wave_file wf = {0,};
+// PROGRAM OPTIONS
+bool VERBOSE_LOGGING = false;
 
 void usage(char* name) {
-	fprintf(stderr, "Usage: %s [file...]\n", name);
+	fprintf(stderr, "Usage: %s [OPTION]... [file...]\n\t-v\tverbose packet logging", name);
 	exit(-1);
 }
 
@@ -72,14 +73,17 @@ int main(int argc, char **argv) {
 	// Argument handling
 	if (argc < 2) usage(argv[0]);
 	int opt;
-	while ((opt = getopt(argc, argv, "h")) != -1) {
+	while ((opt = getopt(argc, argv, "vh")) != -1) {
 		switch (opt) {
+			case 'v': VERBOSE_LOGGING = true;
+				break;
 			default: usage(argv[0]);
 		}
 	}
 	char* filename = argv[optind];
 
 	// Open the WAVE file
+	struct wave_file wf = {0,};
 	if (open_wave_file(&wf, filename) < 0) return -1;
 
 	// Set up network connection (open socket)
