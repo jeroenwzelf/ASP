@@ -39,7 +39,7 @@ enum {
 };
 
 // ASP packet initialization
-asp_packet create_asp_packet(uint16_t source, uint16_t dest, uint8_t flags, void* data, uint16_t data_size);
+asp_packet create_asp_packet(uint16_t source, uint16_t dest, uint8_t flags, uint8_t seq_number, void* data, uint16_t data_size);
 bool is_flag_set(asp_packet* packet, uint8_t flag);
 uint16_t size(asp_packet* packet);
 

@@ -1,33 +1,37 @@
 #include "asp_packet.h"
 
 uint16_t ones_complement_sum(asp_packet* packet) {
+	if (packet == NULL) return 0;
 	/* From RFC 1071: Adjacent octets are paired to form 8-bit
 	integers, and the 1's complement sum of these 8-bit integers is
 	formed. */
-	uint8_t sum = 0;
-	for (uint8_t i=0; i<10; ++i) sum += ((uint8_t*)packet)[i];	// header is 12 octets long (6 uint16_t), data is PAYLOAD_LENGTH long
+	register uint16_t sum = 0;
+	uint16_t* data = packet->data;
+
+	for (uint8_t  i=0; i<ASP_PACKET_HEADER_SIZE; i+=2) sum += ((uint16_t*)packet)[i/2];	// header
+	for (uint16_t i=0; i<packet->PAYLOAD_LENGTH; i+=2) sum += *(data++);				// payload
 	return sum;
 }
 
 bool has_valid_checksum(asp_packet* packet) {
+	if (packet == NULL) return false;
 	/* From RFC 1071: To check a checksum, the 1's complement sum is computed over the
 	same set of octets, including the checksum field.  If the result
 	is all 1 bits (-0 in 1's complement arithmetic), the check
 	succeeds. */
 
 	// Note: all 1 bits is -1 in 2's complement arithmetic
-	return true;
-	return ( (int16_t) ones_complement_sum(packet) == -1);
+	return ((int16_t)ones_complement_sum(packet) == -1);
 }
 
-asp_packet create_asp_packet(uint16_t source, uint16_t dest, uint8_t flags, void* data, uint16_t data_size) {
+asp_packet create_asp_packet(uint16_t source, uint16_t dest, uint8_t flags, uint8_t seq_number, void* data, uint16_t data_size) {
 	asp_packet packet;
 
 	packet.SOURCE_PORT = source;
 	packet.DESTINATION_PORT = dest;
 
 	packet.FLAGS = flags;
-	packet.SEQ_NUMBER = 0;
+	packet.SEQ_NUMBER = seq_number;
 
 	packet.PAYLOAD_LENGTH = data_size;
 	packet.data = data;
@@ -49,10 +53,11 @@ bool is_flag_set(asp_packet* packet, uint8_t flag) {
 
 uint16_t size(asp_packet* packet) {
 	if (packet == NULL) return 0;
-	return (ASP_PACKET_HEADER_SIZE + (packet->PAYLOAD_LENGTH * sizeof(uint8_t)));
+	return ASP_PACKET_HEADER_SIZE + packet->PAYLOAD_LENGTH;
 }
 
 void print_packet(asp_packet* packet) {
+	if (packet == NULL) return;
 	printf("Source Port %u, Destination Port %u\nFlags ", packet->SOURCE_PORT, packet->DESTINATION_PORT, packet->FLAGS);
 	print_flags(packet->FLAGS);
 	printf(", Seq# %u, Length %u, Checksum %u\n\n", packet->SEQ_NUMBER, packet->PAYLOAD_LENGTH, packet->CHECKSUM);
@@ -124,7 +129,7 @@ asp_packet* deserialize_asp(void* buffer) {
 	if (VERBOSE_LOGGING) print_packet(packet);
 
 	if (!has_valid_checksum(packet)) {
-		printf("invalid checksum!\n");
+		printf("A packet arrived with an invalid checksum.\n");
 		return NULL;
 	}
 	return packet;

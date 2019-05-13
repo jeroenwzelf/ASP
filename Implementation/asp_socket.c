@@ -126,7 +126,7 @@ void asp_send_event(asp_socket* sock, uint16_t flags) {
 	asp_packet packet = create_asp_packet(
 				ntohs(sock->info.local_addr.sin_port),
 				ntohs(sock->info.remote_addr.sin_port),
-				flags,
+				flags, 0,
 				NULL, 0);
 	send_packet(sock, serialize_asp(&packet), size(&packet));
 }
@@ -135,7 +135,7 @@ void asp_send_rejection(asp_socket* sock, uint16_t last_packet_sequence_number) 
 	asp_packet packet = create_asp_packet(
 				ntohs(sock->info.local_addr.sin_port),
 				ntohs(sock->info.remote_addr.sin_port),
-				REJ,
+				REJ, 0,
 				last_packet_sequence_number, 2);
 	send_packet(sock, serialize_asp(&packet), size(&packet));
 }
@@ -144,7 +144,7 @@ void asp_send_client_info(asp_socket* sock, uint32_t buffer_size) {
 	asp_packet packet = create_asp_packet(
 				ntohs(sock->info.local_addr.sin_port),
 				ntohs(sock->info.remote_addr.sin_port),
-				NEW_CLIENT,
+				NEW_CLIENT, 0,
 				&buffer_size, 4);
 	send_packet(sock, serialize_asp(&packet), size(&packet));
 }
@@ -154,7 +154,7 @@ void asp_send_wav_header(asp_socket* sock, struct wave_header* wh) {
 	asp_packet packet = create_asp_packet(
 				ntohs(sock->info.local_addr.sin_port),
 				ntohs(sock->info.remote_addr.sin_port),
-				DATA_WAV_HEADER,
+				DATA_WAV_HEADER, 0,
 				buffer, WAV_HEADER_SIZE);
 	send_packet(sock, serialize_asp(&packet), size(&packet));
 	free(buffer);
@@ -164,8 +164,7 @@ void asp_send_wav_samples(asp_socket* sock, uint8_t* samples, uint16_t amount, u
 	asp_packet packet = create_asp_packet(
 				ntohs(sock->info.local_addr.sin_port),
 				ntohs(sock->info.remote_addr.sin_port),
-				DATA_WAV_SAMPLES,
+				DATA_WAV_SAMPLES, packet_sequence_number,
 				samples, amount);
-	packet.SEQ_NUMBER = packet_sequence_number;
 	send_packet(sock, serialize_asp(&packet), size(&packet));
 }

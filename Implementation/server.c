@@ -5,7 +5,7 @@
 bool VERBOSE_LOGGING = false;
 
 void usage(char* name) {
-	fprintf(stderr, "Usage: %s [OPTION]... [file...]\n\t-v\tverbose packet logging", name);
+	fprintf(stderr, "Usage: %s [OPTION]... [file...]\n\t-v\tverbose packet logging\n", name);
 	exit(-1);
 }
 

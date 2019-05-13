@@ -58,7 +58,7 @@ void destroy_socket(asp_socket* sock);
 void set_remote_addr(asp_socket* sock, char* ip, int port);
 
 // Socket data transfer
-void send_packet(asp_socket* sock, void* packet, uint16_t packet_size);
+// void send_packet(asp_socket* sock, void* packet, uint16_t packet_size);
 void* receive_packet(asp_socket* sock, int flags);
 
 // Specific packet sends
