@@ -41,7 +41,7 @@ struct wave_header* initial_server_handshake(asp_socket* sock) {
 	// Receive the header of the wav file
 	struct wave_header* header = receive_wav_header(sock);
 	if (header == NULL) {
-		printf("couldn't perform initial handshake (no header with audio stream information).\n");
+		fprintf(stderr, "couldn't perform initial handshake (no header with audio stream information).\n");
 		return NULL;
 	}
 

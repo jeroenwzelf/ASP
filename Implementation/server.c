@@ -36,10 +36,39 @@ void start_streaming(asp_socket* sock, const struct wave_file *wf, const uint32_
 	asp_send_wav_header(sock, wf->wh);
 
 	// Send wav samples
-	for (uint32_t i=0; i<wf->payload_size/BLOCK_SIZE; ++i) {
+	uint32_t samples_done = 0;
+	while (samples_done < wf->payload_size) {
 		// Cut samples up in blocks of BLOCK_SIZE
 		uint8_t* payload = malloc(BLOCK_SIZE * sizeof(uint8_t));
-		memcpy(payload, current_sample, BLOCK_SIZE * sizeof(uint8_t));
+		uint8_t* payload_pos = payload;
+
+		switch (sock->info.current_quality_level) {
+			case 1:
+				// put BLOCK_SIZE frames in payload
+				for (uint32_t frame=0; frame < BLOCK_SIZE; ++frame) {
+					memcpy(payload_pos, current_sample, sizeof(uint8_t));
+					current_sample += sizeof(uint8_t);
+					payload_pos += sizeof(uint8_t);
+					++samples_done;
+				}
+				break;
+			case 2:
+				break;
+			case 3:
+				break;
+			case 4:
+				break;
+			case 5:
+				memcpy(payload_pos, current_sample, (BLOCK_SIZE) * sizeof(uint8_t));
+				current_sample += (BLOCK_SIZE) * sizeof(uint8_t);
+				payload_pos += (BLOCK_SIZE) * sizeof(uint8_t);
+				samples_done += BLOCK_SIZE;
+				break;
+			default: {
+				fprintf(stderr, "Invalid socket streaming quality level! level: %u", sock->info.current_quality_level);
+				return;
+			}
+		}
 
 		// Send packet
 		asp_send_wav_samples(sock, payload, BLOCK_SIZE, ASP_WINDOW_POS);
@@ -58,9 +87,6 @@ void start_streaming(asp_socket* sock, const struct wave_file *wf, const uint32_
 			}
 			else return;
 		}
-
-		// Goto next sample
-		current_sample += BLOCK_SIZE * sizeof(uint8_t);
 	}
 
 	// Let the client know the stream is ending
@@ -103,7 +129,7 @@ int main(int argc, char **argv) {
 			uint32_t buffer_size = *(uint32_t*)packet->data;
 			start_streaming(&sock, &wf, buffer_size);
 		}
-		else printf("The packet was invalid!\n");
+		else fprintf(stderr, "the packet was invalid.\n");
 		free(buffer);
 	}
 

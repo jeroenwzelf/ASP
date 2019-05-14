@@ -136,7 +136,7 @@ asp_packet* deserialize_asp(const void* buffer) {
 	}
 
 	if (!has_valid_checksum(packet)) {
-		printf("A packet arrived with an invalid checksum.\n");
+		fprintf(stderr, "A packet arrived with an invalid checksum.\n");
 		return NULL;
 	}
 	return packet;
