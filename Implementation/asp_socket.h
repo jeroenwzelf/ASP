@@ -53,17 +53,17 @@ typedef struct
 } asp_socket;
 
 // Socket initialization
-asp_socket new_socket(int local_PORT);
+asp_socket new_socket(const int local_PORT);
 void destroy_socket(asp_socket* sock);
-void set_remote_addr(asp_socket* sock, char* ip, int port);
+void set_remote_addr(asp_socket* sock, const char* ip, const int port);
 
 // Socket data transfer
 // void send_packet(asp_socket* sock, void* packet, uint16_t packet_size);
-void* receive_packet(asp_socket* sock, int flags);
+void* receive_packet(asp_socket* sock, const int flags);
 
 // Specific packet sends
-void asp_send_event(asp_socket* sock, uint16_t flags);
-void asp_send_rejection(asp_socket* sock, uint16_t last_packet_sequence_number);
-void asp_send_client_info(asp_socket* sock, uint32_t buffer_size);
-void asp_send_wav_header(asp_socket* sock, struct wave_header* wh);
-void asp_send_wav_samples(asp_socket* sock, uint8_t* samples, uint16_t amount, uint16_t packet_sequence_number);
+void asp_send_event(asp_socket* sock, const uint16_t flags);
+void asp_send_rejection(asp_socket* sock, const uint16_t last_packet_sequence_number);
+void asp_send_client_info(asp_socket* sock, const uint32_t buffer_size);
+void asp_send_wav_header(asp_socket* sock, const struct wave_header* wh);
+void asp_send_wav_samples(asp_socket* sock, const uint8_t* samples, const uint16_t amount, const uint16_t packet_sequence_number);

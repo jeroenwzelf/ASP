@@ -17,8 +17,6 @@ The Source Port field contains the port from which the packet is sent.
 
 The Destination Port field contains the port to which the packet is sent.
 
-The Seq# field is there for packet identification. When some packets don't arrive, this sequence number is used to resend these missing packets.
-
 The Flags field contains information about the goal of the packet (for example, to Acknowledge) and/or the type of data in the Data octets field.
 	ACK: 1					(00000001),
 	REJ: 2					(00000010),
@@ -26,6 +24,8 @@ The Flags field contains information about the goal of the packet (for example, 
 	DATA_WAV_HEADER: 8		(00001000),
 	DATA_WAV_SAMPLES: 16	(00010000),
 	NEXT_EVENT: 32			(00100000),
+
+The Seq# field is there for packet identification. When some packets don't arrive, this sequence number is used to resend these missing packets.
 
 The Length field specifies how many 8-bit pairs of data the Data field has.
 	(The Length field is 16 bits long, meaning the payload of an ASP packet can contain a maximum of 65535 octets)

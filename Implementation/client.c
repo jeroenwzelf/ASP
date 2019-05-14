@@ -6,7 +6,7 @@
 // PROGRAM OPTIONS
 bool VERBOSE_LOGGING = false;
 
-void usage(char* name) {
+void usage(const char* name) {
 	fprintf(stderr, "  Usage: %s [OPTION]... [-b buffer] [-s server-ip-address]\n\t-v\tverbose packet logging\n", name);
 	exit(-1);
 }

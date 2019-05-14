@@ -20,7 +20,7 @@ typedef struct __attribute__((__packed__)) {
 	void* data;
 } asp_packet;
 
-static uint8_t ASP_PACKET_HEADER_SIZE =
+static const uint8_t ASP_PACKET_HEADER_SIZE =
 		  sizeof(uint16_t)	// SOURCE_PORT
 		+ sizeof(uint16_t)	// DESTINATION_PORT
 		+ sizeof(uint8_t)	// FLAGS
@@ -39,14 +39,15 @@ enum {
 };
 
 // ASP packet initialization
-asp_packet create_asp_packet(uint16_t source, uint16_t dest, uint8_t flags, uint8_t seq_number, void* data, uint16_t data_size);
-bool is_flag_set(asp_packet* packet, uint8_t flag);
-uint16_t size(asp_packet* packet);
+asp_packet create_asp_packet(const uint16_t source, const uint16_t dest,
+	const uint8_t flags, const uint8_t seq_number, const void* data, const uint16_t data_size);
+bool is_flag_set(const asp_packet* packet, const uint8_t flag);
+uint16_t size(const asp_packet* packet);
 
 // Verbose ASP packet logging
-void print_packet(asp_packet* packet);
+void print_packet(const asp_packet* packet);
 void print_flags(uint8_t flags);
 
 // Serialization for transferring packet over a socket
-void* serialize_asp(asp_packet* packet);
-asp_packet* deserialize_asp(void* buffer);
+void* serialize_asp(const asp_packet* packet);
+asp_packet* deserialize_asp(const void* buffer);

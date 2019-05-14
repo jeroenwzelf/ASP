@@ -8,7 +8,7 @@
 #include "asp_socket.h"
 
 // socket (error) state to string
-char* asp_socket_state_to_char(asp_socket_state s) {
+char* asp_socket_state_to_char(const asp_socket_state s) {
 	switch (s) {
 		case CREATE_SOCKET_FAILED:
 			return "CREATE_SOCKET_FAILED";
@@ -27,7 +27,7 @@ char* asp_socket_state_to_char(asp_socket_state s) {
 }
 
 // Socket state error handling
-void set_socket_state(asp_socket* sock, asp_socket_state new_state, char* error) {
+void set_socket_state(asp_socket* sock, const asp_socket_state new_state, const char* error) {
 	if (sock == NULL) return;
 	fprintf(stderr, "Socket state changed from %s to %s (%s).\n", asp_socket_state_to_char(sock->state), asp_socket_state_to_char(new_state), error);
 	sock->state = new_state;
@@ -38,7 +38,7 @@ void set_socket_state(asp_socket* sock, asp_socket_state new_state, char* error)
 // To send data over the socket to a remote address, configure the remote address
 // 		with set_remote_addr(sock, ip, port)
 //		and then send a packet with send_packet(sock, packet, packet_size)
-asp_socket new_socket(int local_PORT) {
+asp_socket new_socket(const int local_PORT) {
 	printf("Creating socket on 127.0.0.1:%i\n", local_PORT);
 	asp_socket sock;
 	sock.state = WORKING;
@@ -70,7 +70,7 @@ asp_socket new_socket(int local_PORT) {
 }
 
 // Sets the remote address (ip:port) for a socket
-void set_remote_addr(asp_socket* sock, char* ip, int port) {
+void set_remote_addr(asp_socket* sock, const char* ip, const int port) {
 	if (sock == NULL) return;
 	// Set destination address (ip:port)
 	memset((char*)&sock->info.remote_addr, ip, sizeof(sock->info.remote_addr));
@@ -100,7 +100,7 @@ void send_packet(asp_socket* sock, void* packet, uint16_t packet_size) {
 }
 
 // Blocks until it receives a packet of any form over a socket
-void* receive_packet(asp_socket* sock, int flags) {
+void* receive_packet(asp_socket* sock, const int flags) {
 	if (sock == NULL) return NULL;
 	// Create empty buffer
 	void* buf = calloc(MAX_PACKET_SIZE, sizeof(char));
@@ -122,7 +122,7 @@ void* receive_packet(asp_socket* sock, int flags) {
 	return NULL;
 }
 
-void asp_send_event(asp_socket* sock, uint16_t flags) {
+void asp_send_event(asp_socket* sock, const uint16_t flags) {
 	asp_packet packet = create_asp_packet(
 				ntohs(sock->info.local_addr.sin_port),
 				ntohs(sock->info.remote_addr.sin_port),
@@ -131,7 +131,7 @@ void asp_send_event(asp_socket* sock, uint16_t flags) {
 	send_packet(sock, serialize_asp(&packet), size(&packet));
 }
 
-void asp_send_rejection(asp_socket* sock, uint16_t last_packet_sequence_number) {
+void asp_send_rejection(asp_socket* sock, const uint16_t last_packet_sequence_number) {
 	asp_packet packet = create_asp_packet(
 				ntohs(sock->info.local_addr.sin_port),
 				ntohs(sock->info.remote_addr.sin_port),
@@ -140,7 +140,7 @@ void asp_send_rejection(asp_socket* sock, uint16_t last_packet_sequence_number) 
 	send_packet(sock, serialize_asp(&packet), size(&packet));
 }
 
-void asp_send_client_info(asp_socket* sock, uint32_t buffer_size) {
+void asp_send_client_info(asp_socket* sock, const uint32_t buffer_size) {
 	asp_packet packet = create_asp_packet(
 				ntohs(sock->info.local_addr.sin_port),
 				ntohs(sock->info.remote_addr.sin_port),
@@ -149,7 +149,7 @@ void asp_send_client_info(asp_socket* sock, uint32_t buffer_size) {
 	send_packet(sock, serialize_asp(&packet), size(&packet));
 }
 
-void asp_send_wav_header(asp_socket* sock, struct wave_header* wh) {
+void asp_send_wav_header(asp_socket* sock, const struct wave_header* wh) {
 	void* buffer = serialize_wav_header(wh);
 	asp_packet packet = create_asp_packet(
 				ntohs(sock->info.local_addr.sin_port),
@@ -160,7 +160,7 @@ void asp_send_wav_header(asp_socket* sock, struct wave_header* wh) {
 	free(buffer);
 }
 
-void asp_send_wav_samples(asp_socket* sock, uint8_t* samples, uint16_t amount, uint16_t packet_sequence_number) {
+void asp_send_wav_samples(asp_socket* sock, const uint8_t* samples, const uint16_t amount, const uint16_t packet_sequence_number) {
 	asp_packet packet = create_asp_packet(
 				ntohs(sock->info.local_addr.sin_port),
 				ntohs(sock->info.remote_addr.sin_port),

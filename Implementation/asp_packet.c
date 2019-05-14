@@ -1,6 +1,6 @@
 #include "asp_packet.h"
 
-uint16_t ones_complement_sum(asp_packet* packet) {
+uint16_t ones_complement_sum(const asp_packet* packet) {
 	if (packet == NULL) return 0;
 	/* From RFC 1071: Adjacent octets are paired to form 8-bit
 	integers, and the 1's complement sum of these 8-bit integers is
@@ -13,7 +13,7 @@ uint16_t ones_complement_sum(asp_packet* packet) {
 	return sum;
 }
 
-bool has_valid_checksum(asp_packet* packet) {
+bool has_valid_checksum(const asp_packet* packet) {
 	if (packet == NULL) return false;
 	/* From RFC 1071: To check a checksum, the 1's complement sum is computed over the
 	same set of octets, including the checksum field.  If the result
@@ -24,15 +24,14 @@ bool has_valid_checksum(asp_packet* packet) {
 	return ((int16_t)ones_complement_sum(packet) == -1);
 }
 
-asp_packet create_asp_packet(uint16_t source, uint16_t dest, uint8_t flags, uint8_t seq_number, void* data, uint16_t data_size) {
+asp_packet create_asp_packet(const uint16_t source, const uint16_t dest,
+	const uint8_t flags, const uint8_t seq_number, const void* data, const uint16_t data_size) {
 	asp_packet packet;
 
 	packet.SOURCE_PORT = source;
 	packet.DESTINATION_PORT = dest;
-
 	packet.FLAGS = flags;
 	packet.SEQ_NUMBER = seq_number;
-
 	packet.PAYLOAD_LENGTH = data_size;
 	packet.data = data;
 
@@ -46,17 +45,17 @@ asp_packet create_asp_packet(uint16_t source, uint16_t dest, uint8_t flags, uint
 	return packet;
 }
 
-bool is_flag_set(asp_packet* packet, uint8_t flag) {
+bool is_flag_set(const asp_packet* packet, const uint8_t flag) {
 	if (packet == NULL) return false;
 	return ((packet->FLAGS & flag) == flag);
 }
 
-uint16_t size(asp_packet* packet) {
+uint16_t size(const asp_packet* packet) {
 	if (packet == NULL) return 0;
 	return ASP_PACKET_HEADER_SIZE + packet->PAYLOAD_LENGTH;
 }
 
-void print_packet(asp_packet* packet) {
+void print_packet(const asp_packet* packet) {
 	if (packet == NULL) return;
 	printf("Source Port %u, Destination Port %u\nFlags ", packet->SOURCE_PORT, packet->DESTINATION_PORT, packet->FLAGS);
 	print_flags(packet->FLAGS);
@@ -85,7 +84,7 @@ void print_flags(uint8_t flags) {
 }
 
 // Copies the packet and its contents (actual data instead of pointer to data) into a buffer
-void* serialize_asp(asp_packet* packet) {
+void* serialize_asp(const asp_packet* packet) {
 	if (packet == NULL) return NULL;
 	void* buffer = malloc(size(packet));
 
@@ -106,11 +105,16 @@ void* serialize_asp(asp_packet* packet) {
 	memcpy(buffer + (8 * sizeof(uint8_t)), &htons_CHECKSUM, sizeof(uint16_t));
 	memcpy(buffer + (10 * sizeof(uint8_t)), packet->data, packet->PAYLOAD_LENGTH * sizeof(uint8_t));
 
+	if (VERBOSE_LOGGING) {
+		printf("Outgoing packet: \n");
+		print_packet(packet);
+	}
+
 	return buffer;
 }
 
 // Converts a buffer into a valid ASP packet if it is one. If it was not a valid packet, it returns NULL
-asp_packet* deserialize_asp(void* buffer) {
+asp_packet* deserialize_asp(const void* buffer) {
 	if (buffer == NULL) return NULL;
 	asp_packet* packet = buffer;
 
@@ -126,7 +130,10 @@ asp_packet* deserialize_asp(void* buffer) {
 	memcpy(payload, buffer + ASP_PACKET_HEADER_SIZE, packet->PAYLOAD_LENGTH);
 	packet->data = payload;
 
-	if (VERBOSE_LOGGING) print_packet(packet);
+	if (VERBOSE_LOGGING) {
+		printf("Incoming packet: \n");
+		print_packet(packet);
+	}
 
 	if (!has_valid_checksum(packet)) {
 		printf("A packet arrived with an invalid checksum.\n");

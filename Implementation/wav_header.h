@@ -18,7 +18,7 @@ struct wave_header {
 	uint16_t w_bits_per_sample;
 };
 
-static uint8_t WAV_HEADER_SIZE =
+static const uint8_t WAV_HEADER_SIZE =
 		  (4 * sizeof(char)) 	// riff_id[4]
 		+ sizeof(uint32_t)		// size
 		+ (4 * sizeof(char))	// wave_id[4]
@@ -32,5 +32,5 @@ static uint8_t WAV_HEADER_SIZE =
 		+ sizeof(uint16_t);		// w_bits_per_sample
 
 // Serialization for transferring a wav header over a socket
-void* serialize_wav_header(struct wave_header* header);
-struct wave_header* deserialize_wav_header(void* buf);
+void* serialize_wav_header(const struct wave_header* header);
+struct wave_header* deserialize_wav_header(const void* buf);

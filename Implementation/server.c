@@ -4,7 +4,7 @@
 // PROGRAM OPTIONS
 bool VERBOSE_LOGGING = false;
 
-void usage(char* name) {
+void usage(const char* name) {
 	fprintf(stderr, "Usage: %s [OPTION]... [file...]\n\t-v\tverbose packet logging\n", name);
 	exit(-1);
 }
@@ -23,7 +23,7 @@ asp_packet* get_ack(asp_socket* sock) {
 	return NULL;
 }
 
-void start_streaming(asp_socket* sock, struct wave_file *wf, uint32_t BLOCK_SIZE) {
+void start_streaming(asp_socket* sock, const struct wave_file *wf, const uint32_t BLOCK_SIZE) {
 	printf("Starting stream...\n");
 
 	uint8_t* current_sample = wf->samples;

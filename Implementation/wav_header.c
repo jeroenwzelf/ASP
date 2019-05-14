@@ -1,6 +1,6 @@
 #include "wav_header.h"
 
-void* serialize_wav_header(struct wave_header* header) {
+void* serialize_wav_header(const struct wave_header* header) {
 	void* buffer = malloc(WAV_HEADER_SIZE);
 	void* buffer_start = buffer;
 
@@ -51,7 +51,7 @@ void* serialize_wav_header(struct wave_header* header) {
 	return buffer_start;
 }
 
-struct wave_header* deserialize_wav_header(void* buffer) {
+struct wave_header* deserialize_wav_header(const void* buffer) {
 	struct wave_header* header = malloc(WAV_HEADER_SIZE);
 
 	memcpy(header->riff_id, buffer, 4 * sizeof(char));
