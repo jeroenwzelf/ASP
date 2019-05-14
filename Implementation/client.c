@@ -6,6 +6,21 @@
 // PROGRAM OPTIONS
 bool VERBOSE_LOGGING = false;
 
+uint8_t check_quality_level(int seq_count,int seq_num){
+	// check every 20 packets for the loss that occurs and adjust the quality level if needed
+	int diff = (seq_num/seq_count)*100;
+
+	// five quality levels, check the difference (percentage of 20 packets that were actually received)
+	// 1 is the lowest quality and 5 the highest.
+	if(diff < 20) return 1;
+	else if(diff >20 && diff < 50) return 2;
+	else if(diff > 50 && diff < 70) return 3;
+	else if(diff >60 && diff < 100) return 4;
+	else if(diff == 100) return 5;
+
+	else return -1;
+}
+
 void usage(const char* name) {
 	fprintf(stderr, "  Usage: %s [OPTION]... [-b buffer] [-s server-ip-address]\n\t-v\tverbose packet logging\n", name);
 	exit(-1);
@@ -27,15 +42,19 @@ void* receive_wav_samples(asp_socket* sock) {
 	if (packet != NULL && is_flag_set(packet, DATA_WAV_SAMPLES)) {
 		// Check if we are still getting the expected packet order
 		// If our counter is less than the packet, we missed some packets
-		if (++sock->info.sequence_count < packet->SEQ_NUMBER) {
+		printf("%u\n",packet->SEQ_NUMBER );
+		printf("%u\n", sock->info.sequence_count);
+		if (sock->info.sequence_count < packet->SEQ_NUMBER) {
 			asp_send_rejection(sock, sock->info.sequence_count);
 			sock->info.sequence_count = 0;
+			printf("%s\n","Rejected" );
 			return receive_wav_samples(sock);
 		}
 		else if (sock->info.sequence_count >= ASP_WINDOW) {
 			asp_send_event(sock, ACK);
 			sock->info.sequence_count = 0;
 		}
+		else ++sock->info.sequence_count;
 		return packet->data;
 	}
 	return NULL;
@@ -71,7 +90,7 @@ int main(int argc, char **argv) {
 
 
 	// Set up network connection
-	asp_socket sock = new_socket(1233);
+	asp_socket sock = new_socket(1234);
 	set_remote_addr(&sock, SERVER_IP, ASP_SERVER_PORT);
 
 	// Let the server know that he should start his audio stream

@@ -2,7 +2,22 @@
 #include "asp_socket.h"
 
 // PROGRAM OPTIONS
+#define SIM_CONNECTION true
 bool VERBOSE_LOGGING = false;
+
+void simulate_connection(asp_socket * sock, uint8_t *payload, const uint32_t BLOCK_SIZE, const uint32_t ASP_WINDOW_POS){
+	// Simulating a bad connection is done by not sending every packet, thus having to send the packets again
+	// after getting a rejection flag from the client.
+	int percentage = rand() % (10 + 1 - 0) + 0;
+	printf("%i\n",percentage );
+
+	// There is a 10% chance that a packet will not be send, simulating that is has been lost in transfer
+	if(percentage > 0)
+		asp_send_wav_samples(sock,payload,BLOCK_SIZE,ASP_WINDOW_POS);
+	else
+		printf("%s\n", "hihi not sending ;)" );
+}
+
 
 void usage(const char* name) {
 	fprintf(stderr, "Usage: %s [OPTION]... [file...]\n\t-v\tverbose packet logging\n", name);
@@ -41,10 +56,19 @@ void start_streaming(asp_socket* sock, const struct wave_file *wf, const uint32_
 		uint8_t* payload = malloc(BLOCK_SIZE * sizeof(uint8_t));
 		memcpy(payload, current_sample, BLOCK_SIZE * sizeof(uint8_t));
 
-		// Send packet
-		asp_send_wav_samples(sock, payload, BLOCK_SIZE, ASP_WINDOW_POS);
-		free(payload);
+		// Before sending a packet, check whether the boolean SIM_CONNECTION is true. If it is we are simulating a bad connection
+		// and the sending of packets is done by the function simulate_connection().
+		if(SIM_CONNECTION){
+			simulate_connection(sock, payload,BLOCK_SIZE, ASP_WINDOW_POS);
+		}
+		
+		else{
+			asp_send_wav_samples(sock, payload, BLOCK_SIZE, ASP_WINDOW_POS);
+		}
 
+		free(payload);
+		// Send packet
+		
 		// Wait for acknowledgement from client when needed
 		if (++ASP_WINDOW_POS >= ASP_WINDOW) {
 			asp_packet* packet = get_ack(sock);
@@ -53,8 +77,10 @@ void start_streaming(asp_socket* sock, const struct wave_file *wf, const uint32_
 			}
 			else if (is_flag_set(packet, REJ)) {
 				ASP_WINDOW_POS = 0;
-				uint16_t first_missing_packet = *(uint16_t*)packet->data + 1;
-				current_sample -= (ASP_WINDOW - first_missing_packet + 1) * (BLOCK_SIZE * sizeof(uint8_t));
+				printf("%u\n", *(uint16_t*)packet->data);
+				uint16_t first_missing_packet = *(uint16_t*)packet->data;
+				current_sample -= (ASP_WINDOW - first_missing_packet) * (BLOCK_SIZE * sizeof(uint8_t));
+				i -= ASP_WINDOW - first_missing_packet;
 			}
 			else return;
 		}

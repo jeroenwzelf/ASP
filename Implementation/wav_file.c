@@ -53,6 +53,10 @@ int open_wave_file(struct wave_file *wf, const char *filename) {
 	}
 
 	playlength = (float) *size / (wf->wh->n_channels * wf->wh->n_samples_per_sec * wf->wh->w_bits_per_sample / 8);
+	if (wf->payload_size <= 0) {
+		fprintf(stderr, "couldn't find sample data of %s\n", filename);
+		return -1;
+	}
 
 	printf("file %s, mode %s, samplerate %lu, time %.1f sec\n",
 				filename, wf->wh->n_channels == 2 ? "Stereo" : "Mono",

@@ -6,8 +6,7 @@ uint16_t ones_complement_sum(const asp_packet* packet) {
 	integers, and the 1's complement sum of these 8-bit integers is
 	formed. */
 	register uint16_t sum = 0;
-	uint16_t* data = packet->data;
-
+	uint8_t* data = packet->data;
 	for (uint8_t  i=0; i<ASP_PACKET_HEADER_SIZE; i+=2) sum += ((uint16_t*)packet)[i/2];	// header
 	for (uint16_t i=0; i<packet->PAYLOAD_LENGTH; i+=2) sum += *(data++);				// payload
 	return sum;
@@ -109,7 +108,6 @@ void* serialize_asp(const asp_packet* packet) {
 		printf("Outgoing packet: \n");
 		print_packet(packet);
 	}
-
 	return buffer;
 }
 

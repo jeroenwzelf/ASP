@@ -93,8 +93,9 @@ void destroy_socket(asp_socket* sock) {
 void send_packet(asp_socket* sock, void* packet, uint16_t packet_size) {
 	if (sock == NULL) return;
 	if (sock->state == WORKING) {
-		if (sendto(sock->info.sockfd, packet, packet_size, 0, &sock->info.remote_addr, sizeof(sock->info.remote_addr)) == -1)
+		if (sendto(sock->info.sockfd, packet, packet_size, 0, &sock->info.remote_addr, sizeof(sock->info.remote_addr)) == -1){
 			set_socket_state(sock, SOCKET_WRITE_FAILED, strerror(errno));
+		}
 	}
 	else fprintf(stderr, "Couldn't send packet: socket is invalid!\n");
 }
@@ -136,7 +137,7 @@ void asp_send_rejection(asp_socket* sock, const uint16_t last_packet_sequence_nu
 				ntohs(sock->info.local_addr.sin_port),
 				ntohs(sock->info.remote_addr.sin_port),
 				REJ, 0,
-				last_packet_sequence_number, 2);
+				&last_packet_sequence_number, 2);
 	send_packet(sock, serialize_asp(&packet), size(&packet));
 }
 
