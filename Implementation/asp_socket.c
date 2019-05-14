@@ -56,9 +56,10 @@ asp_socket new_socket(const int local_PORT) {
 	sock.info.local_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
 	// Initialize socket info
+	sock.info.current_quality_level = 5;
+	sock.info.sequence_count = 0;
 	sock.info.packets_received = 0;
 	sock.info.packets_missing = 0;
-	sock.info.sequence_count = 0;
 
 	// Bind socket to port
 	if (bind(sock.info.sockfd, &sock.info.local_addr, sizeof(sock.info.local_addr)) == -1) {
@@ -119,6 +120,7 @@ void* receive_packet(asp_socket* sock, const int flags) {
 
 	free(buf);
 	fprintf(stderr, "Couldn't listen to socket: socket is invalid!\n");
+	exit(-1);
 	return NULL;
 }
 
