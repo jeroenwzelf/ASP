@@ -116,20 +116,22 @@ void* serialize_asp(const asp_packet* packet) {
 // Converts a buffer into a valid ASP packet if it is one. If it was not a valid packet, it returns NULL
 asp_packet* deserialize_asp(const void* buffer) {
 	if (buffer == NULL) return NULL;
-	asp_packet* packet = buffer;
+	asp_packet* buffer_cast = buffer;
+	asp_packet* packet = malloc(sizeof(asp_packet));
 
-	packet->SOURCE_PORT = ntohs(packet->SOURCE_PORT);
-	packet->DESTINATION_PORT = ntohs(packet->DESTINATION_PORT);
-	packet->FLAGS = packet->FLAGS;
-	packet->SEQ_NUMBER = packet->SEQ_NUMBER;
-	packet->PAYLOAD_LENGTH = ntohs(packet->PAYLOAD_LENGTH);
-	packet->CHECKSUM = ntohs(packet->CHECKSUM);
+	packet->SOURCE_PORT = ntohs(buffer_cast->SOURCE_PORT);
+	packet->DESTINATION_PORT = ntohs(buffer_cast->DESTINATION_PORT);
+	packet->FLAGS = buffer_cast->FLAGS;
+	packet->SEQ_NUMBER = buffer_cast->SEQ_NUMBER;
+	packet->PAYLOAD_LENGTH = ntohs(buffer_cast->PAYLOAD_LENGTH);
+	packet->CHECKSUM = ntohs(buffer_cast->CHECKSUM);
 
 	// Get payload from buffer
 	void* payload = malloc(packet->PAYLOAD_LENGTH);
 	memcpy(payload, buffer + ASP_PACKET_HEADER_SIZE, packet->PAYLOAD_LENGTH);
 	packet->data = payload;
 
+	free(buffer);
 	if (VERBOSE_LOGGING) {
 		printf("Incoming packet: \n");
 		print_packet(packet);

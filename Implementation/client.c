@@ -5,21 +5,12 @@
 
 // PROGRAM OPTIONS
 bool VERBOSE_LOGGING = false;
-static uint32_t buffer_size = 1024;
+uint32_t buffer_size = 1024;
 static char SERVER_IP[16];	// largest length for ip: sizeof(XXX.XXX.XXX.XXX\0) == 16
 
 void usage(const char* name) {
-	fprintf(stderr, "  Usage: %s [OPTION]... [-b buffer] [-s server-ip-address]\n\t-v\tverbose packet logging\n", name);
+	fprintf(stderr, "  Usage: %s [OPTION]... [-b buffer (> 16)] [-s server-ip-address]\n\t-v\tverbose packet logging\n", name);
 	exit(-1);
-}
-
-struct wave_header* receive_wav_header(asp_socket* sock) {
-	void* buffer = receive_packet(sock, 0);
-	asp_packet* packet = deserialize_asp(buffer);
-
-	if (packet != NULL)
-		return deserialize_wav_header(packet->data);
-	return NULL;
 }
 
 struct wave_header* initial_server_handshake(asp_socket* sock) {
@@ -39,12 +30,15 @@ struct wave_header* initial_server_handshake(asp_socket* sock) {
 	}
 
 	// Receive the header of the wav file
-	struct wave_header* header = receive_wav_header(sock);
-	if (header == NULL) {
+	void* buffer = receive_packet(sock, 0);
+	asp_packet* packet = deserialize_asp(buffer);
+
+	if (packet == NULL) {
 		fprintf(stderr, "couldn't perform initial handshake (no header with audio stream information).\n");
 		return NULL;
 	}
 
+	struct wave_header* header = deserialize_wav_header(packet->data);
 	printf("%s:%d is streaming a wav file with ",
 			inet_ntoa(sock->info.remote_addr.sin_addr), ntohs(sock->info.remote_addr.sin_port));
 	printf("mode %s, samplerate %lu\n",
@@ -80,7 +74,7 @@ snd_pcm_t* open_audio_device(const uint16_t n_channels, const uint32_t n_samples
 	return snd_handle;
 }
 
-void* receive_wav_samples(asp_socket* sock) {
+asp_packet* receive_wav_samples(asp_socket* sock) {
 	void* buffer = receive_packet(sock, 0);
 	asp_packet* packet = deserialize_asp(buffer);
 
@@ -96,9 +90,58 @@ void* receive_wav_samples(asp_socket* sock) {
 			asp_send_event(sock, ACK);
 			sock->info.sequence_count = 0;
 		}
-		return packet->data;
 	}
-	return NULL;
+	return packet;
+}
+
+bool fill_buffer(asp_socket* sock, uint8_t* recv_ptr, uint32_t sample_size) {
+	sample_size = 1;
+	uint32_t recv_filled = 0;
+
+	while (recv_filled < buffer_size) {
+		asp_packet* wav_sample_packet = receive_wav_samples(sock);
+		if (wav_sample_packet == NULL || !is_flag_set(wav_sample_packet, DATA_WAV_SAMPLES))
+			return false;
+
+		uint8_t* wav_samples = wav_sample_packet->data;
+		// there are always ASP_PACKET_WAV_SAMPLES samples in a packet
+		// depending on the quality, some samples should be copied to keep the audio framerate thesame
+		switch (sock->info.current_quality_level) {
+			case 1:
+				break;
+			case 2:
+				break;
+			case 3:
+				break;
+			case 4:
+				// half of the samples are missing, so duplicate every sample
+				for (uint32_t sample=0; sample < ASP_PACKET_WAV_SAMPLES; ++sample) {
+					memcpy(recv_ptr, wav_samples, sample_size);
+					recv_ptr += sample_size;
+					recv_filled += sample_size;
+					wav_samples += sample_size;
+				}
+				break;
+			case 5:
+				/*for (uint32_t frame=0; frame < ASP_PACKET_WAV_SAMPLES; ++frame) {
+					memcpy(recv_ptr, wav_samples, sample_size);
+					recv_ptr += sample_size;
+					recv_filled += sample_size;
+					wav_samples += sample_size;
+				}*/
+				// no samples are missing, just put it in recvbuffer
+				memcpy(recv_ptr, wav_samples, ASP_PACKET_WAV_SAMPLES * sample_size);
+				recv_ptr += ASP_PACKET_WAV_SAMPLES;
+				recv_filled += ASP_PACKET_WAV_SAMPLES;
+				break;
+			default:
+				fprintf(stderr, "Invalid socket streaming quality level! level: %u", sock->info.current_quality_level);
+				free(wav_samples);
+				return false;
+		}
+		free(wav_samples);
+	}
+	return true;
 }
 
 void stream_wav_file(asp_socket* sock) {
@@ -110,34 +153,33 @@ void stream_wav_file(asp_socket* sock) {
 	snd_pcm_t* snd_handle = open_audio_device(header->n_channels, header->n_samples_per_sec);
 	if (snd_handle == NULL) return;
 
+	bool stream_stopped = false;
+
 	// set up buffers/queues
-	uint8_t *recvbuffer, *playbuffer;
-	uint8_t *recv_ptr, *play_ptr;
-	recvbuffer = malloc(buffer_size);
-	playbuffer = malloc(buffer_size);
+	uint8_t* recvbuffer = malloc(buffer_size);
+	uint8_t* playbuffer = malloc(buffer_size);
+	uint8_t* play_ptr = playbuffer;
 	
-	// fill the buffer
-	memcpy(playbuffer, receive_wav_samples(sock), buffer_size);
-	memcpy(recvbuffer, receive_wav_samples(sock), buffer_size);
+	// fill the recvbuffer first
+	if (!fill_buffer(sock, recvbuffer, header->w_bits_per_sample/8)) stream_stopped = true;
 
 	// Play the wav file
-	printf("playing...\n");
-
-	int i = 0;
-	recv_ptr = recvbuffer;
-	while (true) {
+	while (!stream_stopped) {
+		int i = 0;
 		if (i <= 0) {
+			// Transfer recvbuffer to playbuffer, get a new recvbuffer
+			memcpy(playbuffer, recvbuffer, buffer_size);
+			if (!fill_buffer(sock, recvbuffer, header->w_bits_per_sample/8)) stream_stopped = true;
+
+			// Reset playbuffer
 			play_ptr = playbuffer;
 			i = buffer_size;
-
-			memcpy(playbuffer, recvbuffer, buffer_size);
-			void* wav_samples = receive_wav_samples(sock);
-			if (wav_samples == NULL) break;
-			memcpy(recvbuffer, wav_samples, buffer_size);
 		}
 
 		/* write frames to ALSA */
-		snd_pcm_sframes_t frames = snd_pcm_writei(snd_handle, play_ptr, (buffer_size - ((int) play_ptr - (int) playbuffer)) / header->n_block_align);
+		//snd_pcm_sframes_t frames = snd_pcm_writei(snd_handle, play_ptr, (buffer_size - ((int) play_ptr - (int) playbuffer)) / header->n_block_align);
+		snd_pcm_sframes_t frames = snd_pcm_writei(snd_handle, play_ptr,
+			(buffer_size - ((int) play_ptr - (int) playbuffer)) / header->n_block_align);
 
 		/* Check for errors */
 		int ret = 0;

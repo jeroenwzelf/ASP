@@ -14,6 +14,7 @@
 
 #define ASP_SERVER_PORT	1235
 #define MAX_PACKET_SIZE	524296
+#define ASP_PACKET_WAV_SAMPLES 64
 #define ASP_WINDOW		20
 
 /* An ASP socket descriptor for information about the sockets current state */
