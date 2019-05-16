@@ -23,7 +23,7 @@ asp_packet* get_ack(asp_socket* sock) {
 	return NULL;
 }
 
-void start_streaming(asp_socket* sock, const struct wave_file *wf) {
+void start_streaming(asp_socket* sock, const struct wave_file *wf, uint32_t client_buffer_size) {
 	printf("Starting stream...\n");
 
 	uint8_t* current_sample = wf->samples;
@@ -37,47 +37,25 @@ void start_streaming(asp_socket* sock, const struct wave_file *wf) {
 
 	// Send wav samples
 	uint32_t samples_done = 0;
-	//uint32_t sample_size = wf->wh->w_bits_per_sample/8;
-	uint32_t sample_size = 1;
+	uint32_t sample_size = wf->wh->w_bits_per_sample/8;
 	while (samples_done < wf->payload_size / sample_size) {
 		// Cut samples up in blocks
 		uint8_t* payload = malloc(ASP_PACKET_WAV_SAMPLES * sample_size);
 		uint8_t* payload_pos = payload;
 
-		switch (sock->info.current_quality_level) {
-			case 1:
-				break;
-			case 2:
-				break;
-			case 3:
-				break;
-			case 4:
-				// put ASP_PACKET_WAV_SAMPLES samples in payload
-				for (uint32_t sample=0; sample < ASP_PACKET_WAV_SAMPLES; ++sample) {
-					memcpy(payload_pos, current_sample, sample_size);
-					payload_pos += sample_size;
-					current_sample += sample_size;
-					samples_done++;
-
-					//current_sample += sample_size;
-					//samples_done++;
-				}
-				break;
-			case 5:
-				// put all ASP_PACKET_WAV_SAMPLES directly into the payload
-				memcpy(payload_pos, current_sample, ASP_PACKET_WAV_SAMPLES * sample_size);
-				payload_pos += ASP_PACKET_WAV_SAMPLES * sample_size;
-				current_sample += ASP_PACKET_WAV_SAMPLES * sample_size;
-				samples_done += ASP_PACKET_WAV_SAMPLES;
-				break;
-			default: {
-				fprintf(stderr, "Invalid socket streaming quality level! level: %u", sock->info.current_quality_level);
-				return;
+		uint8_t downsampling = get_downsampling_quality(sock->info.current_quality_level, client_buffer_size, sample_size);
+		printf("%u\n", downsampling);
+		for (uint32_t sample=0; sample < ASP_PACKET_WAV_SAMPLES; ++sample) {
+			memcpy(payload_pos, current_sample, sample_size);
+			payload_pos += sample_size;
+			for (uint8_t copy=0; copy < downsampling; ++copy) {
+				current_sample += sample_size;
+				samples_done++;
 			}
 		}
 
 		// Send packet
-		asp_send_wav_samples(sock, payload, ASP_PACKET_WAV_SAMPLES, ASP_WINDOW_POS);
+		asp_send_wav_samples(sock, payload, ASP_PACKET_WAV_SAMPLES * sample_size, ASP_WINDOW_POS);
 		free(payload);
 
 		// Wait for acknowledgement from client when needed
@@ -132,8 +110,8 @@ int main(int argc, char **argv) {
 		asp_packet* packet = deserialize_asp(buffer);
 
 		if (packet != NULL && is_flag_set(packet, NEW_CLIENT)) {
-			uint32_t buffer_size = *(uint32_t*)packet->data;
-			start_streaming(&sock, &wf);
+			uint32_t client_buffer_size = *(uint32_t*)packet->data;
+			start_streaming(&sock, &wf, client_buffer_size);
 		}
 		else fprintf(stderr, "the packet was invalid.\n");
 		free(packet);

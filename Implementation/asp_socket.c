@@ -56,7 +56,7 @@ asp_socket new_socket(const int local_PORT) {
 	sock.info.local_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
 	// Initialize socket info
-	sock.info.current_quality_level = 5;
+	sock.info.current_quality_level = 2;
 	sock.info.sequence_count = 0;
 	sock.info.packets_received = 0;
 	sock.info.packets_missing = 0;
@@ -169,4 +169,26 @@ void asp_send_wav_samples(asp_socket* sock, const uint8_t* samples, const uint16
 				DATA_WAV_SAMPLES, packet_sequence_number,
 				samples, amount);
 	send_packet(sock, serialize_asp(&packet), size(&packet));
+}
+
+uint8_t get_downsampling_quality(uint8_t quality, uint32_t buffer_size, uint32_t sample_size) {
+	// With downsampling, the amount of samples a client can play from one packet will get much larger.
+	// As the client only has a limited buffer, a client should be able to extract samples from at least one packet.
+	uint8_t max_downsampling = buffer_size / sample_size / ASP_PACKET_WAV_SAMPLES;
+	switch (quality) {
+		case 1: return max_downsampling;	// worst quality possible
+		case 5: return 1;					// best quality possible
+		default: {							// some quality in between the best and the worst
+			uint8_t downsampling = (6 - quality) * (max_downsampling / 5);
+			// round up to the nearest power of 2
+			downsampling--;
+			downsampling |= downsampling >> 1;
+			downsampling |= downsampling >> 2;
+			downsampling |= downsampling >> 4;
+			downsampling |= downsampling >> 8;
+			downsampling |= downsampling >> 16;
+			downsampling++;
+			return (downsampling > 1) ? downsampling : 1;
+		}
+	}
 }

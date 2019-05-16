@@ -68,3 +68,6 @@ void asp_send_rejection(asp_socket* sock, const uint16_t last_packet_sequence_nu
 void asp_send_client_info(asp_socket* sock, const uint32_t buffer_size);
 void asp_send_wav_header(asp_socket* sock, const struct wave_header* wh);
 void asp_send_wav_samples(asp_socket* sock, const uint8_t* samples, const uint16_t amount, const uint16_t packet_sequence_number);
+
+// Audio quality
+uint8_t max_downsampling_size(uint32_t buffer_size, uint32_t sample_size);

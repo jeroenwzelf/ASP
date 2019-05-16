@@ -95,7 +95,6 @@ asp_packet* receive_wav_samples(asp_socket* sock) {
 }
 
 bool fill_buffer(asp_socket* sock, uint8_t* recv_ptr, uint32_t sample_size) {
-	sample_size = 1;
 	uint32_t recv_filled = 0;
 
 	while (recv_filled < buffer_size) {
@@ -106,40 +105,16 @@ bool fill_buffer(asp_socket* sock, uint8_t* recv_ptr, uint32_t sample_size) {
 		uint8_t* wav_samples = wav_sample_packet->data;
 		// there are always ASP_PACKET_WAV_SAMPLES samples in a packet
 		// depending on the quality, some samples should be copied to keep the audio framerate thesame
-		switch (sock->info.current_quality_level) {
-			case 1:
-				break;
-			case 2:
-				break;
-			case 3:
-				break;
-			case 4:
-				// half of the samples are missing, so duplicate every sample
-				for (uint32_t sample=0; sample < ASP_PACKET_WAV_SAMPLES; ++sample) {
-					memcpy(recv_ptr, wav_samples, sample_size);
-					recv_ptr += sample_size;
-					recv_filled += sample_size;
-					wav_samples += sample_size;
-				}
-				break;
-			case 5:
-				/*for (uint32_t frame=0; frame < ASP_PACKET_WAV_SAMPLES; ++frame) {
-					memcpy(recv_ptr, wav_samples, sample_size);
-					recv_ptr += sample_size;
-					recv_filled += sample_size;
-					wav_samples += sample_size;
-				}*/
-				// no samples are missing, just put it in recvbuffer
-				memcpy(recv_ptr, wav_samples, ASP_PACKET_WAV_SAMPLES * sample_size);
-				recv_ptr += ASP_PACKET_WAV_SAMPLES;
-				recv_filled += ASP_PACKET_WAV_SAMPLES;
-				break;
-			default:
-				fprintf(stderr, "Invalid socket streaming quality level! level: %u", sock->info.current_quality_level);
-				free(wav_samples);
-				return false;
+		uint8_t downsampling = get_downsampling_quality(sock->info.current_quality_level, buffer_size, sample_size);
+		for (uint32_t sample=0; sample < ASP_PACKET_WAV_SAMPLES; ++sample) {
+			for (uint8_t copy=0; copy < downsampling; ++copy) {
+				memcpy(recv_ptr, wav_samples, sample_size);
+				recv_ptr += sample_size;
+				recv_filled += sample_size;
+			}
+			wav_samples += sample_size;
 		}
-		free(wav_samples);
+		free(wav_sample_packet);
 	}
 	return true;
 }
@@ -222,6 +197,14 @@ int main(int argc, char **argv) {
 				break;
 			case 'b':
 				buffer_size = atoi(optarg);
+				// round buffer size up to the nearest power of 2
+				buffer_size--;
+				buffer_size |= buffer_size >> 1;
+				buffer_size |= buffer_size >> 2;
+				buffer_size |= buffer_size >> 4;
+				buffer_size |= buffer_size >> 8;
+				buffer_size |= buffer_size >> 16;
+				buffer_size++;
 				break;
 			case 's':
 				snprintf(SERVER_IP, 16, "%s", optarg);
