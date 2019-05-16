@@ -44,7 +44,6 @@ void start_streaming(asp_socket* sock, const struct wave_file *wf, uint32_t clie
 		uint8_t* payload_pos = payload;
 
 		uint8_t downsampling = get_downsampling_quality(sock->info.current_quality_level, client_buffer_size, sample_size);
-		printf("%u\n", downsampling);
 		for (uint32_t sample=0; sample < ASP_PACKET_WAV_SAMPLES; ++sample) {
 			memcpy(payload_pos, current_sample, sample_size);
 			payload_pos += sample_size;
