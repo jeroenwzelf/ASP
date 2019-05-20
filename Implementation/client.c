@@ -9,7 +9,7 @@ uint32_t buffer_size = 1024;
 static char SERVER_IP[16];	// largest length for ip: sizeof(XXX.XXX.XXX.XXX\0) == 16
 
 void usage(const char* name) {
-	fprintf(stderr, "  Usage: %s [OPTION]... [-b buffer (> 16)] [-s server-ip-address]\n\t-v\tverbose packet logging\n", name);
+	fprintf(stderr, "  Usage: %s [OPTION]... [-b buffer (> 16)] [-p client-port] [-s server-ip-address]\n\t-v\tverbose packet logging\n", name);
 	exit(-1);
 }
 
@@ -17,16 +17,20 @@ struct wave_header* initial_server_handshake(asp_socket* sock) {
 	asp_send_client_info(sock, buffer_size);
 
 	// Wait for server to be ready to start streaming
-	while (true) {
+	bool got_new_port = false;
+	while (!got_new_port) {
 		// Old packets from a previous client may be coming through
 		void* buffer = receive_packet(sock, 0);
 		asp_packet* packet = deserialize_asp(buffer);
 
-		if (packet != NULL) {
-			bool start_stream = is_flag_set(packet, NEXT_EVENT);
-			free(packet);
-			if (start_stream) break;
+		// Connect to new port
+		if (packet != NULL && is_flag_set(packet, NEW_CLIENT)) {
+			uint32_t new_port = htons(*(uint32_t*)packet->data);
+			set_remote_addr(sock, SERVER_IP, new_port);
+			got_new_port = true;
+			printf("switching outgoing port to %u\n", new_port);
 		}
+		free(packet);
 	}
 
 	// Receive the header of the wav file
@@ -189,12 +193,13 @@ void stream_wav_file(asp_socket* sock) {
 
 int main(int argc, char **argv) {
 	snprintf(SERVER_IP, 16, "%s", "127.0.0.1"); // default server ip
+	uint32_t CLIENT_PORT = 0;	// default: bind to any available port
 
 	int opt;
-	while ((opt = getopt(argc, argv, "b:s:vh")) != -1) {
+	while ((opt = getopt(argc, argv, "p:b:s:vh")) != -1) {
 		switch (opt) {
-			case 'v': VERBOSE_LOGGING = true;
-				break;
+			case 'v': VERBOSE_LOGGING = true; break;
+			case 'p': CLIENT_PORT = atoi(optarg); break;
 			case 'b':
 				buffer_size = atoi(optarg);
 				// round buffer size up to the nearest power of 2
@@ -206,16 +211,14 @@ int main(int argc, char **argv) {
 				buffer_size |= buffer_size >> 16;
 				buffer_size++;
 				break;
-			case 's':
-				snprintf(SERVER_IP, 16, "%s", optarg);
-				break;
+			case 's': snprintf(SERVER_IP, 16, "%s", optarg); break;
 		default: usage(argv[0]);
 		}
 	}
 	if (optind < argc) usage(argv[0]);
 
 	// Set up network connection
-	asp_socket sock = new_socket(1234);
+	asp_socket sock = new_socket(0);
 	set_remote_addr(&sock, SERVER_IP, ASP_SERVER_PORT);
 
 	// Start audio streaming

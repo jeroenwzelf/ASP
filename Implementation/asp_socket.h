@@ -32,10 +32,15 @@ typedef struct {
 
 	struct timeval last_packet_received;
 	struct timeval last_problem;
-
-	bool is_connected;
-	bool has_accepted;
 } asp_socket_info;
+
+typedef struct
+{
+	uint8_t* current_sample;
+	uint32_t samples_done;
+	uint32_t sample_size;
+	uint32_t client_buffer_size;
+} asp_socket_stream;
 
 // Socket state error handling
 typedef enum {
@@ -44,6 +49,7 @@ typedef enum {
 	SOCKET_WRITE_FAILED,
 	SOCKET_READ_FAILED,
 	SOCKET_WRONG_REMOTE_ADDRESS,
+	CHANGING_SOCKET_STATE_FAILED,
 	WORKING
 } asp_socket_state;
 
@@ -51,12 +57,21 @@ typedef struct
 {
 	asp_socket_state state;
 	asp_socket_info info;
+	asp_socket_stream* stream;
 } asp_socket;
+
+typedef struct socket_list
+{
+	asp_socket* sock;
+	struct socket_list* next;
+} asp_socket_list;
 
 // Socket initialization
 asp_socket new_socket(const int local_PORT);
 void destroy_socket(asp_socket* sock);
 void set_remote_addr(asp_socket* sock, const char* ip, const int port);
+void set_socket_timeout(asp_socket* sock, time_t seconds, suseconds_t microseconds);
+char* socket_address_string(struct sockaddr_in address);
 
 // Socket data transfer
 // void send_packet(asp_socket* sock, void* packet, uint16_t packet_size);
