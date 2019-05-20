@@ -1,21 +1,22 @@
+WHEN SENDING A REJ, IN THE SERVER IT IS CURRENTLY IMPOSSIBLE TO KNOW HOW MANY SAMPLES WERE SENT IN THE PREVIOUS PACKETS.
+
 An ASP (Audio Streaming Protocol) packet is defined as:
 
 0		7 8		15 16	 23 24		31
 +--------+--------+--------+--------+
-| Source Port	  | Destination		|
-|				  |	Port			|
+| Source Port	  | Dest. Port		|
 +--------+--------+--------+--------+
-| Flags	 |  Seq#  | 				|
+| Flags	 |  Seq#  | Length			|
 +--------+--------+--------+--------+
-| Length		  | Checksum		|
+| Checksum		  | Data octets		|
 +--------+--------+--------+--------+
-| Data octets	...
+| more data octets	...
 |				...
 +---------------...
 
 The Source Port field contains the port from which the packet is sent.
 
-The Destination Port field contains the port to which the packet is sent.
+The Dest. Port field contains the port to which the packet is sent.
 
 The Flags field contains information about the goal of the packet (for example, to Acknowledge) and/or the type of data in the Data octets field.
 	ACK: 1					(00000001),
@@ -24,6 +25,8 @@ The Flags field contains information about the goal of the packet (for example, 
 	DATA_WAV_HEADER: 8		(00001000),
 	DATA_WAV_SAMPLES: 16	(00010000),
 	NEXT_EVENT: 32			(00100000),
+	QUALITY_DOWN: 64		(01000000),
+	QUALITY_UP: 128			(10000000),
 
 The Seq# field is there for packet identification. When some packets don't arrive, this sequence number is used to resend these missing packets.
 
@@ -47,11 +50,11 @@ The Checksum field makes it possible to validate packets, and is specified in RF
 		succeeds.
 	(for more info, check: https://tools.ietf.org/html/rfc1071)
 
-The Data octets field contains the payload of the packet. The data can be of any form and server and client have to be able to agree in some way on the form of the payload to parse the Data field.
+The Data octets field contains the payload of the packet. The data can be of any form and server and client have to be able to agree on the form of the payload using the flags in the Flags field to parse the Data field.
 
 
 
-Consequently, an ASP packet is at least 6 * 16 = 96 bits long.
+Consequently, an ASP packet is at least 5 * 16 = 96 bits long.
 A packet with this size would have a Length field of 0000000000000000, and there would be no Data octets in the packet.
 
 
@@ -60,18 +63,30 @@ For an implementation of an ASP packet in C, check Implementation/asp_packet.c.
 =============================================
 Registering a client on a server
 =============================================
-As a client, you will have to send an ASP packet with the NEW_CLIENT flag, along with the additional info of how large the client wants their packets to be.
+As a client, you will have to send an ASP packet with the NEW_CLIENT flag, along with the additional info of the maximum size of wav data info they can receive.
+By the definition of this protocol, the server will always run on port 1235.
+
 0		7 8		15 16	 23 24		31
 +--------+--------+--------+--------+
-| Source Port	  | Destination		|
-|				  |	Port			|
+| Source Port	  | 1235			|
 +--------+--------+--------+--------+
-| 2				  | 0				|					An ASP packet containing WAV samples.
+|00000100|  Seq#  | 4				|					An ASP packet that a client sends to register to the server
 +--------+--------+--------+--------+
-| 00000100		  | Checksum		|
+| Checksum		  | Buffer size		|
 +--------+--------+--------+--------+
-| Buffer size	  |			
-+--------+--------+
+
+When the server registers a client, it opens another socket on another port to be able to stream audio to the new client while still being able to receive other new clients. It will send an ASP packet with the NEW_CLIENT flag back containing the port of this new socket.
+
+0		7 8		15 16	 23 24		31
++--------+--------+--------+--------+
+| 1235			  | Dest. Port		|
++--------+--------+--------+--------+
+|00000100|  Seq#  | 4				|					An ASP packet that a server sends back to the client.
++--------+--------+--------+--------+
+| Checksum		  | new socket port	|
++--------+--------+--------+--------+
+
+The client then has to listen to this new port for incoming audio info, and will send any necessary ACK's or REJ's to this port too.
 
 
 =============================================
@@ -81,14 +96,13 @@ A packet containing Audio samples will always look like:
 
 0		7 8		15 16	 23 24		31
 +--------+--------+--------+--------+
-| Source Port	  | Destination		|
-|				  |	Port			|
+| Source Port	  | Dest. Port		|
 +--------+--------+--------+--------+
-| Length		  | Sequence Number	|					An ASP packet containing WAV samples.
+|00010000|  Seq#  | Length			|					An ASP packet containing WAV samples.
 +--------+--------+--------+--------+
-| 00010000		  | Checksum		|
+| Checksum		  | sample octets	|
 +--------+--------+--------+--------+
-| Audio sample octets	...
+| more audio sample octets	...
 |				...
 +---------------...
 
@@ -96,27 +110,23 @@ The server will send a batch of 20 packets like this, with Sequence Number 0 - 1
 
 0		7 8		15 16	 23 24		31
 +--------+--------+--------+--------+
-| Source Port	  | Destination		|
-|				  |	Port			|
+| Source Port	  | Dest. Port		|
 +--------+--------+--------+--------+
-| 0				  | 0				|					An ASP ACK packet.
+|00000001|  Seq#  | 0				|					An ASP ACK packet.
 +--------+--------+--------+--------+
-| 00000001		  | Checksum		|
-+--------+--------+--------+--------+
+| Checksum		  | 
++--------+--------+
 
 If the client hasn't received all 20 packets containing samples, it can send a rejection packet instead of ACK-ing the batch, like this:
 
 0		7 8		15 16	 23 24		31
 +--------+--------+--------+--------+
-| Source Port	  | Destination		|
-|				  |	Port			|
+| Source Port	  | Dest. Port		|
 +--------+--------+--------+--------+
-| 2				  | 0				|					An ASP REJ packet.
+|00000010|  Seq#  | 0				|					An ASP REJ packet.
 +--------+--------+--------+--------+
-| 00000010		  | Checksum		|
+| Checksum		  | Sequence Number |
 +--------+--------+--------+--------+
-| Sequence number |
-+--------+--------+
 
 The data contains the sequence number of the last packet of the batch the client has received. The server will start a new batch using the packets that came after the packet with that sequence number.
 
