@@ -103,6 +103,7 @@ asp_packet* receive_wav_samples(asp_socket* sock) {
 		// Check if we are still getting the expected packet order
 		// If our counter is less than the packet, we missed some packets
 		if (sock->info.sequence_count++ < packet->SEQ_NUMBER) {;
+			printf("%u %u\n", sock->info.sequence_count, packet->SEQ_NUMBER);
 			asp_send_rejection(sock, sock->info.sequence_count);
 			sock->info.sequence_count = 0;
 
@@ -128,7 +129,7 @@ bool fill_buffer(asp_socket* sock, uint8_t* recv_ptr, uint32_t sample_size) {
 		uint8_t* wav_samples = wav_sample_packet->data;
 		// there are always ASP_PACKET_WAV_SAMPLES samples in a packet
 		// depending on the quality, some samples should be copied to keep the audio framerate thesame
-		uint8_t downsampling = get_downsampling_quality(sock->info.current_quality_level, buffer_size, sample_size);
+		uint8_t downsampling = get_downsampling_quality(sock->info.current_quality_level,buffer_size,sample_size);
 		for (uint32_t sample=0; sample < ASP_PACKET_WAV_SAMPLES; ++sample) {
 			for (uint8_t copy=0; copy < downsampling; ++copy) {
 				memcpy(recv_ptr, wav_samples, sample_size);

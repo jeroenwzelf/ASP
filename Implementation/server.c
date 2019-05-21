@@ -5,7 +5,6 @@
 #define SIM_CONNECTION true
 bool VERBOSE_LOGGING = false;
 int count_ack;
-int count_rej;
 
 // wave file
 struct wave_file wf = {0,};
@@ -18,25 +17,23 @@ void usage(const char* name) {
 	exit(-1);
 }
 
-uint8_t calculate_quality_level() {
-	return 5;
-	/*switch (count_ack){
-		case 0: {printf("%s\n","Changing audio quality to 1" ); return 16;}
-		case 1: {printf("%s\n","Changing audio quality to 2" ); return 8;}
-		case 2:	{printf("%s\n","Changing audio quality to 3" ); return 4;}
-		case 5: {printf("%s\n","Changing audio quality to 4" ); return 2;}
-		case 10: {printf("%s\n","Changing audio quality to 5" ); return 1;}
+void calculate_quality_level(asp_socket * sock) {
+	switch (count_ack){
+		case 0: {printf("%s\n","Changing audio quality to 1" ); sock->info.current_quality_level = 1;}
+		case 10: {printf("%s\n","Changing audio quality to 2" ); sock->info.current_quality_level = 2;}
+		case 25:	{printf("%s\n","Changing audio quality to 3" ); sock->info.current_quality_level = 3;}
+		case 50: {printf("%s\n","Changing audio quality to 4" ); sock->info.current_quality_level = 4;}
+		case 100: {printf("%s\n","Changing audio quality to 5" ); sock->info.current_quality_level = 5;}
 		default:{
-			if(count_ack > 5 && count_ack < 10) {printf("%s\n","Changing audio quality to 3" ); return 2;}
-			else if(count_ack > 10){printf("%s\n","Changing audio quality to 5" ); return 1;}
+			if(count_ack > 5 && count_ack < 10) {printf("%s\n","Changing audio quality to 3" ); sock->info.current_quality_level = 2;}
 		}
-	}*/
+	}
 }
 
 void simulate_connection(asp_socket * sock, uint8_t *payload, const uint32_t sample_size, const uint32_t ASP_WINDOW_POS){
 	// Simulating a bad connection is done by not sending every packet, thus having to send the packets again
 	// after getting a rejection flag from the client.
-	int percentage = rand() % (5000 + 1 - 0) + 0;
+	int percentage = rand() % (1000 + 1 - 0) + 0;
 
 	// There is a 10% chance that a packet will not be send, simulating that is has been lost in transfer
 	if(percentage > 0)
@@ -52,11 +49,12 @@ void send_wav_sample_batch(asp_socket* sock) {
 			uint8_t* payload = malloc(ASP_PACKET_WAV_SAMPLES * sock->stream->sample_size);
 			uint8_t* payload_pos = payload;
 
+			calculate_quality_level(sock);
 			uint8_t downsampling = get_downsampling_quality(sock->info.current_quality_level, sock->stream->client_buffer_size, sock->stream->sample_size);
 			for (uint32_t sample=0; sample < ASP_PACKET_WAV_SAMPLES; ++sample) {
 				memcpy(payload_pos, sock->stream->current_sample, sock->stream->sample_size);
 				payload_pos += sock->stream->sample_size;
-				for (uint8_t copy=0; copy < downsampling; ++copy) {
+				for (uint8_t copy=0; copy < downsampling ; ++copy) {
 					sock->stream->current_sample += sock->stream->sample_size;
 					++sock->stream->samples_done;
 				}
@@ -123,14 +121,14 @@ void EVENT_new_client(asp_socket* sock, asp_packet* packet) {
 
 void EVENT_ACK(asp_socket* sock) {
 	if (sock->stream == NULL) return;
-	sock->info.current_quality_level = calculate_quality_level();
-	
+	count_ack++;
 	send_wav_sample_batch(sock);
 }
 
 void EVENT_REJ(asp_socket* sock, asp_packet* packet) {
 	if (sock->stream == NULL) return;
-	sock->info.current_quality_level = calculate_quality_level();
+
+	count_ack = 0;
 
 	uint16_t first_missing_packet = *(uint16_t*)packet->data;
 	sock->stream->current_sample -= (ASP_WINDOW - first_missing_packet) * (ASP_PACKET_WAV_SAMPLES * sock->stream->sample_size);
