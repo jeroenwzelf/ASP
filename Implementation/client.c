@@ -82,13 +82,14 @@ snd_pcm_t* open_audio_device(const uint16_t n_channels, const uint32_t n_samples
 asp_packet* receive_wav_samples(asp_socket* sock) {
 	void* buffer = receive_packet(sock, 0);
 	asp_packet* packet = deserialize_asp(buffer);
+
 	if (packet != NULL && is_flag_set(packet, DATA_WAV_SAMPLES)) {
 		// Check if we are still getting the expected packet order
 		// If our counter is less than the packet, we missed some packets
 		if (sock->info.sequence_count++ < packet->SEQ_NUMBER) {;
 			printf("%u %u\n",sock->info.sequence_count, packet->SEQ_NUMBER);
 			asp_send_rejection(sock, sock->info.sequence_count);
-			sock->info.sequence_count=0;
+			sock->info.sequence_count++;
 			return receive_wav_samples(sock);
 		}
 		else if (sock->info.sequence_count >= ASP_WINDOW) {

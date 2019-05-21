@@ -134,7 +134,7 @@ void EVENT_ACK(asp_socket* sock) {
 
 void EVENT_REJ(asp_socket* sock, asp_packet* packet) {
 	if (sock->stream == NULL) return;
-	uint16_t first_missing_packet = *(uint16_t*)packet->data-1;
+	uint16_t first_missing_packet = *(uint16_t*)packet->data;
 	sock->stream->current_sample -= (ASP_WINDOW-first_missing_packet) * (ASP_PACKET_WAV_SAMPLES * sock->stream->sample_size);
 	sock->stream->samples_done -=  (ASP_WINDOW-first_missing_packet) * ASP_PACKET_WAV_SAMPLES;
 	//sock->info.sequence_count = first_missing_packet;
