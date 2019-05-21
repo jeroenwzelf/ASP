@@ -79,6 +79,23 @@ snd_pcm_t* open_audio_device(const uint16_t n_channels, const uint32_t n_samples
 	return snd_handle;
 }
 
+void filter_old_packet_requests(asp_socket* sock) {
+	while (true) {
+		void* buffer = receive_packet(sock, MSG_PEEK);
+		asp_packet* packet = deserialize_asp(buffer);
+
+		if (packet != NULL && is_flag_set(packet, DATA_WAV_SAMPLES)) {
+			uint8_t SEQ_NUMBER = packet->SEQ_NUMBER;
+			free(packet);
+			if (SEQ_NUMBER == 0) return;	// it was a packet from a new sequence!
+			
+			// remove old packet from recv buffer
+			void* buffer = receive_packet(sock, 0);
+			free(buffer);
+		}
+	}
+}
+
 asp_packet* receive_wav_samples(asp_socket* sock) {
 	void* buffer = receive_packet(sock, 0);
 	asp_packet* packet = deserialize_asp(buffer);
@@ -86,9 +103,11 @@ asp_packet* receive_wav_samples(asp_socket* sock) {
 		// Check if we are still getting the expected packet order
 		// If our counter is less than the packet, we missed some packets
 		if (sock->info.sequence_count++ < packet->SEQ_NUMBER) {;
-			printf("%u %u\n",sock->info.sequence_count, packet->SEQ_NUMBER);
+			printf("sock seq count: %u packet seq number: %u\n", sock->info.sequence_count-1, packet->SEQ_NUMBER);
 			asp_send_rejection(sock, sock->info.sequence_count);
-			sock->info.sequence_count=0;
+			sock->info.sequence_count = 0;
+
+			filter_old_packet_requests(sock);
 			return receive_wav_samples(sock);
 		}
 		else if (sock->info.sequence_count >= ASP_WINDOW) {
@@ -110,9 +129,7 @@ bool fill_buffer(asp_socket* sock, uint8_t* recv_ptr, uint32_t sample_size) {
 		uint8_t* wav_samples = wav_sample_packet->data;
 		// there are always ASP_PACKET_WAV_SAMPLES samples in a packet
 		// depending on the quality, some samples should be copied to keep the audio framerate thesame
-		//uint8_t downsampling = get_downsampling_quality(sock->info.current_quality_level, buffer_size, sample_size);
-		//uint8_t downsampling = sock->info.downsampling;
-		uint8_t downsampling = 1;
+		uint8_t downsampling = get_downsampling_quality(sock->info.current_quality_level, buffer_size, sample_size);
 		for (uint32_t sample=0; sample < ASP_PACKET_WAV_SAMPLES; ++sample) {
 			for (uint8_t copy=0; copy < downsampling; ++copy) {
 				memcpy(recv_ptr, wav_samples, sample_size);

@@ -25,7 +25,6 @@ typedef struct {
 	struct sockaddr_in remote_addr;
 
 	uint8_t current_quality_level;
-	uint8_t downsampling;
 	uint16_t sequence_count;
 
 	int packets_received;
