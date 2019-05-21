@@ -68,6 +68,7 @@ asp_socket new_socket(const int local_PORT) {
 	sock.info.local_addr.sin_addr.s_addr = htonl(INADDR_ANY);
 
 	// Initialize socket info
+	sock.info.downsampling = 1;
 	sock.info.current_quality_level = 5;
 	sock.info.sequence_count = 0;
 	sock.info.packets_received = 0;

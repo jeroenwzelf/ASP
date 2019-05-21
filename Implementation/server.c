@@ -2,7 +2,10 @@
 #include "asp_socket.h"
 
 // PROGRAM OPTIONS
+#define SIM_CONNECTION true
 bool VERBOSE_LOGGING = false;
+int count_ack;
+int count_rej;
 
 // wave file
 struct wave_file wf = {0,};
@@ -15,6 +18,32 @@ void usage(const char* name) {
 	exit(-1);
 }
 
+uint8_t check_quality(){
+	switch (count_ack){
+		case 0: {printf("%s\n","Changing audio quality to 1" ); return 16;}
+		case 1: {printf("%s\n","Changing audio quality to 2" ); return 8;}
+		case 2:	{printf("%s\n","Changing audio quality to 3" ); return 4;}
+		case 5: {printf("%s\n","Changing audio quality to 4" ); return 2;}
+		case 10: {printf("%s\n","Changing audio quality to 5" ); return 1;}
+		default:{
+			if(count_ack > 5 && count_ack < 10) {printf("%s\n","Changing audio quality to 3" ); return 2;}
+			else if(count_ack > 10){printf("%s\n","Changing audio quality to 5" ); return 1;}
+		}
+	}
+}
+
+void simulate_connection(asp_socket * sock, uint8_t *payload, const uint32_t sample_size, const uint32_t ASP_WINDOW_POS){
+	// Simulating a bad connection is done by not sending every packet, thus having to send the packets again
+	// after getting a rejection flag from the client.
+	int percentage = rand() % (5000 + 1 - 0) + 0;
+
+	// There is a 10% chance that a packet will not be send, simulating that is has been lost in transfer
+	if(percentage > 0)
+		asp_send_wav_samples(sock,payload,sample_size,ASP_WINDOW_POS);
+	else
+		printf("%s\n", "hihi not sending ;)" );
+}
+
 void send_wav_sample_batch(asp_socket* sock) {
 	for (uint32_t ASP_WINDOW_POS=0; ASP_WINDOW_POS < ASP_WINDOW; ++ASP_WINDOW_POS) {
 		if (sock->stream->samples_done < wf.payload_size / sock->stream->sample_size) {
@@ -22,7 +51,9 @@ void send_wav_sample_batch(asp_socket* sock) {
 			uint8_t* payload = malloc(ASP_PACKET_WAV_SAMPLES * sock->stream->sample_size);
 			uint8_t* payload_pos = payload;
 
-			uint8_t downsampling = get_downsampling_quality(sock->info.current_quality_level, sock->stream->client_buffer_size, sock->stream->sample_size);
+			//uint8_t downsampling = get_downsampling_quality(sock->info.current_quality_level, sock->stream->client_buffer_size, sock->stream->sample_size);
+			//uint8_t downsampling = sock->info.downsampling;
+			uint8_t downsampling = 1;
 			for (uint32_t sample=0; sample < ASP_PACKET_WAV_SAMPLES; ++sample) {
 				memcpy(payload_pos, sock->stream->current_sample, sock->stream->sample_size);
 				payload_pos += sock->stream->sample_size;
@@ -33,7 +64,14 @@ void send_wav_sample_batch(asp_socket* sock) {
 			}
 
 			// Send packet
-			asp_send_wav_samples(sock, payload, ASP_PACKET_WAV_SAMPLES * sock->stream->sample_size, ASP_WINDOW_POS);
+			if(SIM_CONNECTION){
+				simulate_connection(sock, payload,ASP_PACKET_WAV_SAMPLES * sock->stream->sample_size, ASP_WINDOW_POS);
+			}
+
+			else{
+				asp_send_wav_samples(sock, payload, ASP_PACKET_WAV_SAMPLES * sock->stream->sample_size, ASP_WINDOW_POS);
+			}
+
 			free(payload);
 		}
 		// end stream
@@ -96,8 +134,10 @@ void EVENT_ACK(asp_socket* sock) {
 
 void EVENT_REJ(asp_socket* sock, asp_packet* packet) {
 	if (sock->stream == NULL) return;
-	uint16_t first_missing_packet = *(uint16_t*)packet->data + 1;
-	sock->stream->current_sample -= (ASP_WINDOW - first_missing_packet + 1) * (ASP_PACKET_WAV_SAMPLES * sizeof(uint8_t));
+	uint16_t first_missing_packet = *(uint16_t*)packet->data-1;
+	sock->stream->current_sample -= (ASP_WINDOW-first_missing_packet) * (ASP_PACKET_WAV_SAMPLES * sock->stream->sample_size);
+	sock->stream->samples_done -=  (ASP_WINDOW-first_missing_packet) * ASP_PACKET_WAV_SAMPLES;
+	//sock->info.sequence_count = first_missing_packet;
 	send_wav_sample_batch(sock);
 }
 
@@ -111,8 +151,16 @@ void get_requests_loop() {
 
 			if (packet != NULL) {
 				if (is_flag_set(packet, NEW_CLIENT)) EVENT_new_client(client->sock, packet);
-				else if (is_flag_set(packet, ACK)) EVENT_ACK(client->sock);
-				else if (is_flag_set(packet, REJ)) EVENT_REJ(client->sock, packet);
+				else if (is_flag_set(packet, ACK)){
+					++count_ack;
+					client->sock->info.downsampling = check_quality();
+					EVENT_ACK(client->sock);
+				}
+				else if (is_flag_set(packet, REJ)){
+					count_ack = 0;
+					client->sock->info.downsampling = check_quality();
+					EVENT_REJ(client->sock, packet);
+				}
 			}
 			free(packet);
 
@@ -150,6 +198,7 @@ int main(int argc, char **argv) {
 	client_list->sock = &sock;
 	client_list->next = NULL;
 	
+	count_ack = 10;
 	get_requests_loop();
 
 	/* Clean up */
