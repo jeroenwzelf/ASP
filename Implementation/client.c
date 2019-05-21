@@ -13,7 +13,6 @@ void usage(const char* name) {
 	exit(-1);
 }
 
-
 struct wave_header* initial_server_handshake(asp_socket* sock) {
 	asp_send_client_info(sock, buffer_size);
 
@@ -99,11 +98,11 @@ void filter_old_packet_requests(asp_socket* sock) {
 asp_packet* receive_wav_samples(asp_socket* sock) {
 	void* buffer = receive_packet(sock, 0);
 	asp_packet* packet = deserialize_asp(buffer);
+
 	if (packet != NULL && is_flag_set(packet, DATA_WAV_SAMPLES)) {
 		// Check if we are still getting the expected packet order
 		// If our counter is less than the packet, we missed some packets
 		if (sock->info.sequence_count++ < packet->SEQ_NUMBER) {;
-			printf("sock seq count: %u packet seq number: %u\n", sock->info.sequence_count-1, packet->SEQ_NUMBER);
 			asp_send_rejection(sock, sock->info.sequence_count);
 			sock->info.sequence_count = 0;
 

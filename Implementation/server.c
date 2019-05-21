@@ -124,6 +124,7 @@ void EVENT_new_client(asp_socket* sock, asp_packet* packet) {
 void EVENT_ACK(asp_socket* sock) {
 	if (sock->stream == NULL) return;
 	sock->info.current_quality_level = calculate_quality_level();
+	
 	send_wav_sample_batch(sock);
 }
 
@@ -134,6 +135,7 @@ void EVENT_REJ(asp_socket* sock, asp_packet* packet) {
 	uint16_t first_missing_packet = *(uint16_t*)packet->data;
 	sock->stream->current_sample -= (ASP_WINDOW - first_missing_packet) * (ASP_PACKET_WAV_SAMPLES * sock->stream->sample_size);
 	sock->stream->samples_done -=  (ASP_WINDOW - first_missing_packet) * ASP_PACKET_WAV_SAMPLES;
+
 	send_wav_sample_batch(sock);
 }
 
