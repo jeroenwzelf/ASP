@@ -6,6 +6,8 @@
 // PROGRAM OPTIONS
 bool VERBOSE_LOGGING = false;
 uint32_t buffer_size = 1024;
+uint8_t ack_count;
+uint8_t rej_count;
 static char SERVER_IP[16];	// largest length for ip: sizeof(XXX.XXX.XXX.XXX\0) == 16
 
 void usage(const char* name) {
@@ -15,7 +17,8 @@ void usage(const char* name) {
 
 struct wave_header* initial_server_handshake(asp_socket* sock) {
 	asp_send_client_info(sock, buffer_size);
-
+	ack_count = 60;
+	rej_count = 0;
 	// Wait for server to be ready to start streaming
 	bool got_new_port = false;
 	while (!got_new_port) {
@@ -102,16 +105,35 @@ asp_packet* receive_wav_samples(asp_socket* sock) {
 	if (packet != NULL && is_flag_set(packet, DATA_WAV_SAMPLES)) {
 		// Check if we are still getting the expected packet order
 		// If our counter is less than the packet, we missed some packets
-		if (sock->info.sequence_count++ < packet->SEQ_NUMBER) {;
-			printf("%u %u\n", sock->info.sequence_count, packet->SEQ_NUMBER);
-			asp_send_rejection(sock, sock->info.sequence_count);
+		if (sock->info.sequence_count++ < packet->SEQ_NUMBER) {
+			ack_count = 0;
+			++rej_count;
+			if(rej_count > 4){
+				if(sock->info.current_quality_level > 1){
+					--sock->info.current_quality_level;
+					printf("%s\n","Decreasing the Audio quality");
+					asp_send_rej_quality_down(sock, sock->info.sequence_count);
+				}
+				else asp_send_rejection(sock, sock->info.sequence_count);
+			}
+			else asp_send_rejection(sock, sock->info.sequence_count);
 			sock->info.sequence_count = 0;
 
 			filter_old_packet_requests(sock);
 			return receive_wav_samples(sock);
 		}
 		else if (sock->info.sequence_count >= ASP_WINDOW) {
-			asp_send_event(sock, ACK);
+			++ack_count;
+			if(ack_count > 50){
+				if(sock->info.current_quality_level < 5){
+					++sock->info.current_quality_level;
+					ack_count = 0;
+					printf("%s\n","Increasing the Audio quality");
+					asp_send_event(sock, ACK_QUALITY_UP);
+				}
+				else asp_send_event(sock, ACK);
+			}
+			else asp_send_event(sock, ACK);
 			sock->info.sequence_count = 0;
 		}
 	}

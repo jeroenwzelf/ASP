@@ -174,6 +174,15 @@ void asp_send_rejection(asp_socket* sock, const uint16_t last_packet_sequence_nu
 	send_packet(sock, serialize_asp(&packet), size(&packet));
 }
 
+void asp_send_rej_quality_down(asp_socket* sock, const uint16_t last_packet_sequence_number){
+	asp_packet packet = create_asp_packet(
+				ntohs(sock->info.local_addr.sin_port),
+				ntohs(sock->info.remote_addr.sin_port),
+				REJ_QUALITY_DOWN, 0,
+				&last_packet_sequence_number, 2);
+	send_packet(sock, serialize_asp(&packet), size(&packet));
+}
+
 void asp_send_client_info(asp_socket* sock, const uint32_t buffer_size) {
 	asp_packet packet = create_asp_packet(
 				ntohs(sock->info.local_addr.sin_port),

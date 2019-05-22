@@ -4,7 +4,6 @@
 // PROGRAM OPTIONS
 #define SIM_CONNECTION true
 bool VERBOSE_LOGGING = false;
-int count_ack;
 
 // wave file
 struct wave_file wf = {0,};
@@ -17,26 +16,13 @@ void usage(const char* name) {
 	exit(-1);
 }
 
-void calculate_quality_level(asp_socket * sock) {
-	switch (count_ack){
-		case 0: {printf("%s\n","Changing audio quality to 1" ); sock->info.current_quality_level = 1;}
-		case 10: {printf("%s\n","Changing audio quality to 2" ); sock->info.current_quality_level = 2;}
-		case 25:	{printf("%s\n","Changing audio quality to 3" ); sock->info.current_quality_level = 3;}
-		case 50: {printf("%s\n","Changing audio quality to 4" ); sock->info.current_quality_level = 4;}
-		case 100: {printf("%s\n","Changing audio quality to 5" ); sock->info.current_quality_level = 5;}
-		default:{
-			if(count_ack > 5 && count_ack < 10) {printf("%s\n","Changing audio quality to 3" ); sock->info.current_quality_level = 2;}
-		}
-	}
-}
-
 void simulate_connection(asp_socket * sock, uint8_t *payload, const uint32_t sample_size, const uint32_t ASP_WINDOW_POS){
 	// Simulating a bad connection is done by not sending every packet, thus having to send the packets again
 	// after getting a rejection flag from the client.
 	int percentage = rand() % (1000 + 1 - 0) + 0;
 
 	// There is a 10% chance that a packet will not be send, simulating that is has been lost in transfer
-	if(percentage > 0)
+	if(percentage > 0 || ASP_WINDOW_POS == ASP_WINDOW-1)
 		asp_send_wav_samples(sock,payload,sample_size,ASP_WINDOW_POS);
 	else
 		printf("%s\n", "hihi not sending ;)" );
@@ -49,7 +35,6 @@ void send_wav_sample_batch(asp_socket* sock) {
 			uint8_t* payload = malloc(ASP_PACKET_WAV_SAMPLES * sock->stream->sample_size);
 			uint8_t* payload_pos = payload;
 
-			calculate_quality_level(sock);
 			uint8_t downsampling = get_downsampling_quality(sock->info.current_quality_level, sock->stream->client_buffer_size, sock->stream->sample_size);
 			for (uint32_t sample=0; sample < ASP_PACKET_WAV_SAMPLES; ++sample) {
 				memcpy(payload_pos, sock->stream->current_sample, sock->stream->sample_size);
@@ -121,19 +106,29 @@ void EVENT_new_client(asp_socket* sock, asp_packet* packet) {
 
 void EVENT_ACK(asp_socket* sock) {
 	if (sock->stream == NULL) return;
-	count_ack++;
+	send_wav_sample_batch(sock);
+}
+
+void EVENT_ACK_QUALITY_UP(asp_socket* sock){
+	if(sock->stream == NULL) return;
+	if(sock->info.current_quality_level < 5) ++sock->info.current_quality_level;
 	send_wav_sample_batch(sock);
 }
 
 void EVENT_REJ(asp_socket* sock, asp_packet* packet) {
 	if (sock->stream == NULL) return;
-
-	count_ack = 0;
-
 	uint16_t first_missing_packet = *(uint16_t*)packet->data;
 	sock->stream->current_sample -= (ASP_WINDOW - first_missing_packet) * (ASP_PACKET_WAV_SAMPLES * sock->stream->sample_size);
 	sock->stream->samples_done -=  (ASP_WINDOW - first_missing_packet) * ASP_PACKET_WAV_SAMPLES;
+	send_wav_sample_batch(sock);
+}
 
+void EVENT_REJ_QUALITY_DOWN(asp_socket* sock, asp_packet* packet){
+	if (sock->stream == NULL) return;
+	if(sock->info.current_quality_level > 1) --sock->info.current_quality_level;
+	uint16_t first_missing_packet = *(uint16_t*)packet->data;
+	sock->stream->current_sample -= (ASP_WINDOW - first_missing_packet) * (ASP_PACKET_WAV_SAMPLES * sock->stream->sample_size);
+	sock->stream->samples_done -=  (ASP_WINDOW - first_missing_packet) * ASP_PACKET_WAV_SAMPLES;
 	send_wav_sample_batch(sock);
 }
 
@@ -148,7 +143,9 @@ void get_requests_loop() {
 			if (packet != NULL) {
 				if (is_flag_set(packet, NEW_CLIENT)) EVENT_new_client(client->sock, packet);
 				else if (is_flag_set(packet, ACK)) EVENT_ACK(client->sock);
+				else if (is_flag_set(packet, ACK_QUALITY_UP))EVENT_ACK_QUALITY_UP(client->sock);
 				else if (is_flag_set(packet, REJ)) EVENT_REJ(client->sock, packet);
+				else if (is_flag_set(packet, REJ_QUALITY_DOWN)) EVENT_REJ_QUALITY_DOWN(client->sock, packet);
 			}
 			free(packet);
 
@@ -186,7 +183,6 @@ int main(int argc, char **argv) {
 	client_list->sock = &sock;
 	client_list->next = NULL;
 	
-	count_ack = 10;
 	get_requests_loop();
 
 	/* Clean up */
