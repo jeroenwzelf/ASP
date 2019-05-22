@@ -5,20 +5,19 @@
 
 // PROGRAM OPTIONS
 bool VERBOSE_LOGGING = false;
+bool NO_LOGGING = false;
+
 uint32_t buffer_size = 1024;
-uint8_t ack_count;
-uint8_t rej_count;
 static char SERVER_IP[16];	// largest length for ip: sizeof(XXX.XXX.XXX.XXX\0) == 16
 
 void usage(const char* name) {
-	fprintf(stderr, "  Usage: %s [OPTION]... [-b buffer (> 16)] [-p client-port] [-s server-ip-address]\n\t-v\tverbose packet logging\n", name);
+	fprintf(stderr, "  Usage: %s [OPTION]... [-b buffer (> 16)] [-p client-port] [-s server-ip-address]\n\t-v\tverbose packet logging\n\t-n\tno logging\n", name);
 	exit(-1);
 }
 
 struct wave_header* initial_server_handshake(asp_socket* sock) {
 	asp_send_client_info(sock, buffer_size);
-	ack_count = 60;
-	rej_count = 0;
+
 	// Wait for server to be ready to start streaming
 	bool got_new_port = false;
 	while (!got_new_port) {
@@ -31,7 +30,7 @@ struct wave_header* initial_server_handshake(asp_socket* sock) {
 			uint32_t new_port = htons(*(uint32_t*)packet->data);
 			set_remote_addr(sock, SERVER_IP, new_port);
 			got_new_port = true;
-			printf("switching outgoing port to %u\n", new_port);
+			if (!NO_LOGGING) printf("switching outgoing port to %u\n", new_port);
 		}
 		free(packet);
 	}
@@ -105,35 +104,32 @@ asp_packet* receive_wav_samples(asp_socket* sock) {
 	if (packet != NULL && is_flag_set(packet, DATA_WAV_SAMPLES)) {
 		// Check if we are still getting the expected packet order
 		// If our counter is less than the packet, we missed some packets
-		if (sock->info.sequence_count++ < packet->SEQ_NUMBER) {
-			ack_count = 0;
-			++rej_count;
-			if(rej_count > 4){
-				if(sock->info.current_quality_level > 1){
-					--sock->info.current_quality_level;
-					printf("%s\n","Decreasing the Audio quality");
-					asp_send_rej_quality_down(sock, sock->info.sequence_count);
-				}
-				else asp_send_rejection(sock, sock->info.sequence_count);
+		if (sock->info.sequence_count++ < packet->SEQ_NUMBER) {		// going to send a REJ
+			sock->info.packets_received = 0;
+			uint16_t flags = 0;
+
+			if (++sock->info.packets_missing > 4 && sock->info.current_quality_level > 1) {
+				if (!NO_LOGGING) printf("Decreasing the audio quality to %u.\n", sock->info.current_quality_level);
+				--sock->info.current_quality_level;
+				flags = QUALITY_DOWN;
 			}
-			else asp_send_rejection(sock, sock->info.sequence_count);
+
+			asp_send_rejection(sock, sock->info.sequence_count, flags);
 			sock->info.sequence_count = 0;
 
 			filter_old_packet_requests(sock);
 			return receive_wav_samples(sock);
 		}
 		else if (sock->info.sequence_count >= ASP_WINDOW) {
-			++ack_count;
-			if(ack_count > 50){
-				if(sock->info.current_quality_level < 5){
-					++sock->info.current_quality_level;
-					ack_count = 0;
-					printf("%s\n","Increasing the Audio quality");
-					asp_send_event(sock, ACK_QUALITY_UP);
-				}
-				else asp_send_event(sock, ACK);
+			uint16_t flags = 0;
+			if (++sock->info.packets_received > 50 && sock->info.current_quality_level < 5) {
+				if (!NO_LOGGING) printf("Increasing the audio quality to %u.\n", sock->info.current_quality_level);
+				sock->info.packets_received = 0;
+				++sock->info.current_quality_level;
+				flags = QUALITY_UP;
 			}
-			else asp_send_event(sock, ACK);
+
+			asp_send_event(sock, ACK | flags);
 			sock->info.sequence_count = 0;
 		}
 	}
@@ -238,9 +234,10 @@ int main(int argc, char **argv) {
 	uint32_t CLIENT_PORT = 0;	// default: bind to any available port
 
 	int opt;
-	while ((opt = getopt(argc, argv, "p:b:s:vh")) != -1) {
+	while ((opt = getopt(argc, argv, "p:b:s:vnh")) != -1) {
 		switch (opt) {
 			case 'v': VERBOSE_LOGGING = true; break;
+			case 'n': NO_LOGGING = true; break;
 			case 'p': CLIENT_PORT = atoi(optarg); break;
 			case 'b':
 				buffer_size = atoi(optarg);

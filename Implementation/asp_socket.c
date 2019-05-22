@@ -145,11 +145,7 @@ void* receive_packet(asp_socket* sock, const int flags) {
 		if (recvfrom(sock->info.sockfd, buf, MAX_PACKET_SIZE, flags, &sock->info.remote_addr, &remote_addrlen) == -1) {
 			if (errno != EAGAIN) set_socket_state(sock, SOCKET_READ_FAILED, strerror(errno));
 		}
-		else {
-			// Received a packet
-			++sock->info.packets_received;
-			return buf;
-		}
+		else return buf;
 	}
 
 	free(buf);
@@ -165,20 +161,11 @@ void asp_send_event(asp_socket* sock, const uint16_t flags) {
 	send_packet(sock, serialize_asp(&packet), size(&packet));
 }
 
-void asp_send_rejection(asp_socket* sock, const uint16_t last_packet_sequence_number) {
+void asp_send_rejection(asp_socket* sock, const uint16_t last_packet_sequence_number, const uint16_t flags) {
 	asp_packet packet = create_asp_packet(
 				ntohs(sock->info.local_addr.sin_port),
 				ntohs(sock->info.remote_addr.sin_port),
-				REJ, 0,
-				&last_packet_sequence_number, 2);
-	send_packet(sock, serialize_asp(&packet), size(&packet));
-}
-
-void asp_send_rej_quality_down(asp_socket* sock, const uint16_t last_packet_sequence_number){
-	asp_packet packet = create_asp_packet(
-				ntohs(sock->info.local_addr.sin_port),
-				ntohs(sock->info.remote_addr.sin_port),
-				REJ_QUALITY_DOWN, 0,
+				REJ | flags, 0,
 				&last_packet_sequence_number, 2);
 	send_packet(sock, serialize_asp(&packet), size(&packet));
 }

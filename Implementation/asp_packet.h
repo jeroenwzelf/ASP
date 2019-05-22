@@ -36,8 +36,8 @@ enum {
 	DATA_WAV_HEADER = 1 << 3,	// for sending wav header
 	DATA_WAV_SAMPLES = 1 << 4,	// for sending wav samples
 	NEXT_EVENT = 1 << 5,		// for start/end stream events
-	ACK_QUALITY_UP = 1 << 6,	// for quality up with an acknowledgement
-	REJ_QUALITY_DOWN = 1 << 7	// for quality down with an rejection
+	QUALITY_UP = 1 << 6,		// for audio quality up
+	QUALITY_DOWN = 1 << 7		// for audio quality down
 };
 
 // ASP packet initialization
