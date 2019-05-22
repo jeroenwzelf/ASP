@@ -1,4 +1,6 @@
-WHEN SENDING A REJ, IN THE SERVER IT IS CURRENTLY IMPOSSIBLE TO KNOW HOW MANY SAMPLES WERE SENT IN THE PREVIOUS PACKETS.
+=============================================
+Audio Streaming Protocol Specification
+=============================================
 
 An ASP (Audio Streaming Protocol) packet is defined as:
 
@@ -132,3 +134,10 @@ The data contains the sequence number of the last packet of the batch the client
 
 If all goes well, the server gets an ACK packet, and it will send the next batch of packets, until there are no more samples.
 When there are no more samples, the server lets the client know the stream ended by sending a packet with the NEXT_EVENT flag.
+
+=============================================
+Audio Quality switching
+=============================================
+When a client notices that it doesn't receive all packets fast enough, it can send the QUALITY_DOWN flag to tell the server to lower the quality of the audio (it will do so by not sending a certain amount of audio samples). When the client sends any packet containing the QUALITY_DOWN flag, the server will automatically switch to a lower quality. This quality level is a uint8_t with range 1 - 5, and when the client sends the QUALITY_DOWN flag when the quality is at 1, nothing will happen.
+
+Conversely, the QUALITY_UP flag will tell the server to raise the audio quality. Thesame conditions hold as for QUALITY_DOWN, and when the client sends the QUALITY_UP flag when the quality is at 5, nothing will happen.
